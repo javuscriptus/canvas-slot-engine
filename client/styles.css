@@ -1,0 +1,220 @@
+/* Оболочка игры: экран загрузки, ошибки, подсказка поворота.
+   Всё остальное рисуется в canvas. */
+
+@font-face {
+  font-family: "Poppins";
+  src: url("assets/fonts/Poppins-Medium.ttf") format("truetype");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("assets/fonts/Poppins-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lora";
+  src: url("assets/fonts/Lora-Variable.ttf") format("truetype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #07020F;
+  /* Слот — не документ: подсветку выделения и «резинку» отключаем. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+#game-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 50% 40%, #2A0B45 0%, #12042A 45%, #07020F 100%);
+}
+
+#game-canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* ─────────────────────────── загрузка ─────────────────────────── */
+
+#loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Тот же закат, что и в игре: фиолетовый верх, тёплая полоса у горизонта.
+     Экран загрузки не должен выглядеть как чужая заглушка. */
+  background:
+    radial-gradient(ellipse at 50% 62%, rgba(255, 138, 74, .22) 0%, rgba(255, 138, 74, 0) 58%),
+    linear-gradient(180deg, #2A0F45 0%, #46164F 42%, #1A0730 74%, #07020F 100%);
+  z-index: 20;
+  transition: opacity .45s ease, visibility .45s ease;
+}
+
+#loader.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loader-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.loader-mark {
+  animation: floaty 2.8s ease-in-out infinite;
+  filter: drop-shadow(0 10px 26px rgba(247, 201, 72, .35));
+}
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+
+.loader-title {
+  font: 700 clamp(28px, 6vw, 54px)/1.05 "Lora", Georgia, serif;
+  letter-spacing: .12em;
+  background: linear-gradient(180deg, #FFF3C4 0%, #F7C948 45%, #A9690C 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.loader-title span {
+  display: block;
+  font: 700 clamp(13px, 2.6vw, 24px)/1.6 "Poppins", sans-serif;
+  letter-spacing: .34em;
+}
+
+.progress-track {
+  width: min(420px, 74vw);
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .09);
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .6);
+}
+
+#progress-fill {
+  width: 2%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #E09E1A, #FFE082, #FFF3C4);
+  box-shadow: 0 0 14px rgba(255, 224, 130, .7);
+  transition: width .28s ease;
+}
+
+#loader-status {
+  font: 500 14px/1 "Poppins", "Lora", sans-serif;
+  letter-spacing: .16em;
+  color: #A492C6;
+  text-transform: uppercase;
+}
+
+/* ──────────────────────────── ошибка ──────────────────────────── */
+
+#error-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 2, 15, .96);
+  z-index: 30;
+}
+
+#error-screen.hidden { display: none; }
+
+.error-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 520px;
+  padding: 40px 28px;
+  text-align: center;
+  color: #E9DDFF;
+  font: 500 17px/1.5 "Poppins", "Lora", sans-serif;
+}
+
+.error-mark {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 3px solid #F7C948;
+  color: #F7C948;
+  font: 700 34px/1 "Poppins", sans-serif;
+}
+
+#error-retry {
+  padding: 14px 38px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #FFE082, #E09E1A);
+  color: #3A1F00;
+  font: 700 15px/1 "Poppins", sans-serif;
+  letter-spacing: .1em;
+  cursor: pointer;
+  transition: transform .15s ease, filter .15s ease;
+}
+
+#error-retry:hover { transform: translateY(-2px); filter: brightness(1.08); }
+#error-retry:active { transform: translateY(0); }
+
+/* ───────────────────── подсказка о повороте ───────────────────── */
+
+/* Показывается только в очень узком ландшафте — там, где интерфейс
+   физически не помещается (телефон лёжа с высотой меньше 380 px). */
+#rotate-hint {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: rgba(7, 2, 15, .97);
+  color: #E9DDFF;
+  font: 600 17px/1.4 "Poppins", "Lora", sans-serif;
+  z-index: 25;
+}
+
+.rotate-icon {
+  width: 62px;
+  height: 100px;
+  border: 4px solid #F7C948;
+  border-radius: 12px;
+  animation: rotate-phone 2.4s ease-in-out infinite;
+}
+
+@keyframes rotate-phone {
+  0%, 40%   { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(90deg); }
+}
+
+@media (orientation: landscape) and (max-height: 380px) {
+  #rotate-hint { display: flex; }
+}

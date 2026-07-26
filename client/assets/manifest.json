@@ -1,0 +1,139 @@
+{
+  "version": "4ca8bedf8a",
+  "scale": {
+    "symbols": 2,
+    "ui": 2,
+    "images": 1
+  },
+  "atlases": {
+    "symbols": {
+      "json": "atlas/symbols.json",
+      "image": "atlas/symbols.png"
+    },
+    "ui": {
+      "json": "atlas/ui.json",
+      "image": "atlas/ui.png"
+    }
+  },
+  "images": {
+    "reel_frame": {
+      "file": "img/reel_frame.png",
+      "w": 2240,
+      "h": 1440
+    },
+    "logo": {
+      "file": "img/logo.png",
+      "w": 1800,
+      "h": 600
+    },
+    "banner_big": {
+      "file": "img/banner_big.png",
+      "w": 1800,
+      "h": 520
+    },
+    "banner_mega": {
+      "file": "img/banner_mega.png",
+      "w": 1800,
+      "h": 520
+    },
+    "banner_epic": {
+      "file": "img/banner_epic.png",
+      "w": 1800,
+      "h": 520
+    },
+    "banner_free": {
+      "file": "img/banner_free.png",
+      "w": 1800,
+      "h": 520
+    },
+    "bg_landscape": {
+      "file": "img/bg_landscape.webp",
+      "w": 1920,
+      "h": 1080
+    },
+    "bg_landscape_free": {
+      "file": "img/bg_landscape_free.webp",
+      "w": 1920,
+      "h": 1080
+    },
+    "bg_portrait": {
+      "file": "img/bg_portrait.webp",
+      "w": 1080,
+      "h": 1920
+    },
+    "bg_portrait_free": {
+      "file": "img/bg_portrait_free.webp",
+      "w": 1080,
+      "h": 1920
+    }
+  },
+  "symbols": [
+    {
+      "id": 0,
+      "key": "anchor",
+      "label": "ЯКОРЬ"
+    },
+    {
+      "id": 1,
+      "key": "icecream",
+      "label": "МОРОЖЕНОЕ"
+    },
+    {
+      "id": 2,
+      "key": "shashlik",
+      "label": "ШАШЛЫК"
+    },
+    {
+      "id": 3,
+      "key": "hat",
+      "label": "ШЛЯПА"
+    },
+    {
+      "id": 4,
+      "key": "wine",
+      "label": "ВИНО"
+    },
+    {
+      "id": 5,
+      "key": "gem_red",
+      "label": "КРАСНЫЙ"
+    },
+    {
+      "id": 6,
+      "key": "gem_amber",
+      "label": "ЯНТАРЬ"
+    },
+    {
+      "id": 7,
+      "key": "gem_green",
+      "label": "ЗЕЛЁНЫЙ"
+    },
+    {
+      "id": 8,
+      "key": "gem_aqua",
+      "label": "БИРЮЗА"
+    },
+    {
+      "id": 9,
+      "key": "gem_purple",
+      "label": "ФИОЛЕТОВЫЙ"
+    },
+    {
+      "id": 10,
+      "key": "wild",
+      "label": "WILD"
+    },
+    {
+      "id": 11,
+      "key": "scatter",
+      "label": "SCATTER"
+    }
+  ],
+  "audio": {
+    "sprite": "audio/sfx.json",
+    "files": [
+      "audio/sfx.webm",
+      "audio/sfx.mp3"
+    ]
+  }
+}

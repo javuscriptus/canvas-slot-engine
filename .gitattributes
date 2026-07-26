@@ -1,0 +1,25 @@
+# Windows-скрипты обязаны иметь переводы строк CRLF.
+#
+# cmd.exe читает bat-файл как поток байт: при одних только LF команды
+# склеиваются в мусор, и окно закрывается мгновенно, не показав ни строчки.
+# Отладить такое тяжело именно потому, что сообщения об ошибке нет вообще.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Всё остальное — LF, независимо от системы разработчика.
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.json text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.md   text eol=lf
+*.py   text eol=lf
+
+# Бинарники не трогать.
+*.png binary
+*.jpg binary
+*.webp binary
+*.mp3 binary
+*.ogg binary
+*.ttf binary
+*.zip binary
