@@ -42,6 +42,17 @@ const config = {
     // 'self' — только собственный домен; пусто — встраивание запрещено.
     frameAncestors: env("FRAME_ANCESTORS", "'self'")
       .split(",").map((s) => s.trim()).filter(Boolean),
+    // Кому клиент вправе слать postMessage. Список приходит клиенту
+    // в /api/config: брать его из параметра URL нельзя — тогда любой,
+    // кто открыл игру по своей ссылке, получает launch-токен оператора.
+    // По умолчанию совпадает с frameAncestors: кто встраивает, тот и
+    // разговаривает.
+    lobbyOrigins: env("LOBBY_ORIGINS", env("FRAME_ANCESTORS", "'self'"))
+      .split(",").map((s) => s.trim()).filter(Boolean),
+    // Дополнительные адреса для connect-src в CSP: кошелёк оператора,
+    // телеметрия. Пусто — игра ходит только к себе.
+    cspConnect: env("CSP_CONNECT_SRC", "")
+      .split(",").map((s) => s.trim()).filter(Boolean),
     staticDir: path.resolve(__dirname, "../../client"),
     serveStatic: envBool("SERVE_STATIC", true)
   },
@@ -82,10 +93,21 @@ const config = {
     // Защита от «дятла»: спамить спинами быстрее, чем крутятся барабаны,
     // смысла нет, а нагрузку это создаёт.
     spinsPerMinute: envInt("RATE_SPINS_PER_MIN", 240),
+    // Лимиты по адресу. Считать только по игроку недостаточно: демо-игрок
+    // создаётся заново на каждую сессию, и счётчик обнуляется одним лишним
+    // POST /api/session. Адрес так просто не меняется.
+    apiPerMinutePerIp: envInt("RATE_API_PER_MIN_PER_IP", 900),
+    apiPerMinutePerPlayer: envInt("RATE_API_PER_MIN_PER_PLAYER", 600),
+    spinsPerMinutePerIp: envInt("RATE_SPINS_PER_MIN_PER_IP", 600),
+    sessionsPerMinutePerIp: envInt("RATE_SESSIONS_PER_MIN_PER_IP", 30),
     // Тикет запрашивается один раз на подключение. Запас — на реконнекты
     // при дёрганой сети; экспоненциальная пауза в клиенте держит нас
     // сильно ниже этого потолка.
     wsTicketsPerMinute: envInt("RATE_WS_TICKETS_PER_MIN", 30),
+    // Смена клиентского семени — действие игрока, а не автоматики:
+    // десятка в минуту хватает с запасом, а перебор семян в поисках
+    // «удачного» этим лимитом становится бессмысленным.
+    fairCommitsPerMinute: envInt("RATE_FAIR_COMMITS_PER_MIN", 20),
     maxBetMinor: envInt("MAX_BET_MINOR", 1000000),
     minBetMinor: envInt("MIN_BET_MINOR", 1),
     // Лимиты по валютам: "USD:20:500000,JPY:2000:50000000" — код, минимум

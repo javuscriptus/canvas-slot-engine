@@ -22,18 +22,18 @@ export class AssetStore {
   has(name) {
     return this.frames.has(name);
   }
-
-  /** Кадр символа по его числовому id из математики. */
-  symbolFrame(id) {
-    const meta = this.manifest.symbols.find((s) => s.id === id);
-    if (!meta) throw new Error(`Нет графики для символа ${id}`);
-    return this.frame(meta.key);
-  }
 }
 
 export class Loader {
-  constructor(baseUrl = "assets/") {
+  /**
+   * @param opts.fonts начертания для прогрева в формате CSS font; список
+   *                    приходит из темы, движок гарнитур не знает.
+   *   Список приходит снаружи: движок не должен знать имён гарнитур игры —
+   *   иначе смена темы требует правки движка.
+   */
+  constructor(baseUrl = "assets/", { fonts = [] } = {}) {
     this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+    this.fonts = fonts;
     this.onProgress = new Signal();
     this.store = new AssetStore();
     this._loaded = 0;
@@ -140,16 +140,15 @@ export class Loader {
     return store;
   }
 
+  /**
+   * Прогрев начертаний. Без него первый кадр рисуется запасной гарнитурой,
+   * а потом весь текст дёргается — на экране загрузки это особенно заметно.
+   */
   async loadFonts() {
     if (!document.fonts) return;
     try {
       await document.fonts.ready;
-      // Прогреваем начертания, которые реально используются в игре.
-      await Promise.all([
-        document.fonts.load("700 32px Poppins"),
-        document.fonts.load("600 32px Poppins"),
-        document.fonts.load("700 32px Lora")
-      ]);
+      await Promise.all(this.fonts.map((f) => document.fonts.load(f)));
     } catch {
       // Шрифт не загрузился — не повод ронять игру: сработает запасная гарнитура.
     }

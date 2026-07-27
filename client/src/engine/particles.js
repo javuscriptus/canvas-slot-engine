@@ -1,13 +1,18 @@
 // Система частиц с пулом. Всё летающее золото, искры и конфетти —
-// отсюда. Частицы рисуются одним узлом Custom: 300 отдельных спрайтов
-// в графе сцены стоили бы дороже, чем сам их рендер.
+// отсюда. Частицы рисуются ОДНИМ узлом сцены: триста отдельных спрайтов
+// в графе стоили бы дороже, чем сам их рендер.
+//
+// Здесь нет ни одного игрового рецепта: движок умеет испускать частицы,
+// а что именно должно сыпаться при крупном выигрыше — знает тема.
 
 import { Node } from "./display.js";
-import { randRange, randInt, clamp } from "./core.js";
+import { NodeType } from "./render/drawables.js";
+import { randRange } from "./core.js";
 
 class Particle {
   constructor() {
     this.active = false;
+    this.slot = -1;      // место в плотном списке активных: удаление за O(1)
   }
 
   spawn(cfg) {
@@ -45,19 +50,38 @@ class Particle {
   }
 }
 
+/**
+ * Пул фиксированной ёмкости с двумя списками: свободные и активные.
+ *
+ * Раньше и выдача слота, и обновление, и отрисовка шли перебором всей
+ * ёмкости. При пуле в 360 частиц и десятке живых это тысяча с лишним
+ * холостых проверок за кадр — и ровно в тот момент, когда на экране
+ * баннер крупного выигрыша и запас производительности уже потрачен.
+ */
 export class ParticleSystem extends Node {
   constructor(capacity = 400) {
     super();
-    this.pool = Array.from({ length: capacity }, () => new Particle());
+    this.nodeType = NodeType.PARTICLES;
     this.capacity = capacity;
-    this.count = 0;
+    this.pool = Array.from({ length: capacity }, () => new Particle());
+    this.free = this.pool.slice();
+    this.active = [];
+    this.width = 0;
+    this.height = 0;
   }
 
-  _take() {
-    for (let i = 0; i < this.capacity; i++) {
-      if (!this.pool[i].active) return this.pool[i];
-    }
-    return null;   // пул исчерпан — молча пропускаем, ронять кадр нельзя
+  get count() {
+    return this.active.length;
+  }
+
+  setSize(w, h) {
+    this.width = w;
+    this.height = h;
+    return this;
+  }
+
+  getLocalSize() {
+    return { width: this.width, height: this.height };
   }
 
   /**
@@ -71,14 +95,16 @@ export class ParticleSystem extends Node {
    *   size         [min, max] размер в дизайнерских пикселях
    *   sizeEnd      множитель размера к концу жизни
    *   gravity, drag
-   *   alphaEnd
+   *   alpha, alphaEnd
    *   spin         [min, max] рад/с
+   *   spread       [x, y] разброс точки испускания
    *   blend        режим наложения
    */
   emit(o) {
     const count = o.count ?? 10;
     for (let i = 0; i < count; i++) {
-      const p = this._take();
+      const p = this.free.pop();
+      // Пул исчерпан — молча пропускаем: ронять кадр из-за лишней искры нельзя.
       if (!p) return;
       const angle = randRange(o.angle?.[0] ?? 0, o.angle?.[1] ?? Math.PI * 2);
       const speed = randRange(o.speed?.[0] ?? 100, o.speed?.[1] ?? 300);
@@ -100,118 +126,97 @@ export class ParticleSystem extends Node {
         frame: o.frame,
         blend: o.blend ?? null
       });
+      p.slot = this.active.length;
+      this.active.push(p);
     }
   }
 
   update(dt) {
-    let n = 0;
-    for (let i = 0; i < this.capacity; i++) {
-      const p = this.pool[i];
-      if (p.active) {
-        p.update(dt);
-        if (p.active) n++;
+    const list = this.active;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const p = list[i];
+      p.update(dt);
+      if (p.active) continue;
+      // Обмен с хвостом вместо splice: порядок частиц никого не волнует,
+      // а сдвиг массива на каждой погасшей искре — волнует.
+      const last = list.pop();
+      if (i < list.length) {
+        list[i] = last;
+        last.slot = i;
       }
+      p.slot = -1;
+      this.free.push(p);
     }
-    this.count = n;
   }
 
   clear() {
-    for (const p of this.pool) p.active = false;
-    this.count = 0;
+    for (const p of this.active) {
+      p.active = false;
+      p.slot = -1;
+      this.free.push(p);
+    }
+    this.active.length = 0;
   }
 }
 
-/** Отрисовщик частиц: один Custom-узел на всю систему. */
+/**
+ * Отрисовка всей системы на Canvas2D.
+ *
+ * Матрица узла уже выставлена бэкендом, поэтому частица без поворота
+ * рисуется просто по своим координатам. Повёрнутой матрица досчитывается
+ * вручную и ставится через setTransform: ctx.save()/restore() на каждую
+ * частицу — это до трёхсот сохранений полного состояния контекста за кадр,
+ * и именно они были главной статьёй расхода, а не сам drawImage.
+ */
 export function drawParticles(ctx, system) {
-  let currentBlend = null;
-  for (let i = 0; i < system.capacity; i++) {
-    const p = system.pool[i];
-    if (!p.active || !p.frame) continue;
+  const list = system.active;
+  if (!list.length) return;
+
+  const m = system.worldMatrix;
+  const base = system.worldAlpha;
+  let blend = null;
+  let transformed = false;
+
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
+    const f = p.frame;
+    if (!f) continue;
 
     const t = 1 - p.life / p.maxLife;
-    const size = p.size + (p.sizeEnd - p.size) * t;
-    const alpha = p.alpha + (p.alphaEnd - p.alpha) * t;
+    const alpha = (p.alpha + (p.alphaEnd - p.alpha) * t) * base;
     if (alpha <= 0.002) continue;
+    const size = p.size + (p.sizeEnd - p.size) * t;
 
-    if (p.blend !== currentBlend) {
+    if (p.blend !== blend) {
       ctx.globalCompositeOperation = p.blend || "source-over";
-      currentBlend = p.blend;
+      blend = p.blend;
     }
-
     ctx.globalAlpha = alpha;
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    if (p.rotation) ctx.rotate(p.rotation);
-    ctx.drawImage(p.frame.image, p.frame.x, p.frame.y, p.frame.w, p.frame.h,
-      -size / 2, -size / 2, size, size);
-    ctx.restore();
+
+    if (p.rotation) {
+      const c = Math.cos(p.rotation);
+      const s = Math.sin(p.rotation);
+      ctx.setTransform(
+        c * m.a + s * m.c,
+        c * m.b + s * m.d,
+        -s * m.a + c * m.c,
+        -s * m.b + c * m.d,
+        p.x * m.a + p.y * m.c + m.tx,
+        p.x * m.b + p.y * m.d + m.ty
+      );
+      ctx.drawImage(f.image, f.x, f.y, f.w, f.h, -size / 2, -size / 2, size, size);
+      transformed = true;
+    } else {
+      if (transformed) {
+        ctx.setTransform(m.a, m.b, m.c, m.d, m.tx, m.ty);
+        transformed = false;
+      }
+      ctx.drawImage(f.image, f.x, f.y, f.w, f.h,
+        p.x - size / 2, p.y - size / 2, size, size);
+    }
   }
+
+  if (transformed) ctx.setTransform(m.a, m.b, m.c, m.d, m.tx, m.ty);
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
 }
-
-/* ─────────────────────── готовые «рецепты» ──────────────────────── */
-
-export const Bursts = {
-  /** Искры при появлении выигрышного символа. */
-  winSpark(sys, frame, x, y, scale = 1) {
-    sys.emit({
-      frame, x, y, count: 14,
-      speed: [90 * scale, 260 * scale],
-      life: [0.35, 0.75],
-      size: [14 * scale, 34 * scale],
-      sizeEnd: 0.2,
-      gravity: 120,
-      drag: 0.94,
-      blend: "lighter"
-    });
-  },
-
-  /** Фонтан монет для крупного выигрыша. */
-  coinFountain(sys, frame, x, y, count = 30) {
-    sys.emit({
-      frame, x, y, count,
-      spread: [220, 20],
-      angle: [-Math.PI * 0.85, -Math.PI * 0.15],
-      speed: [520, 1000],
-      life: [1.1, 1.9],
-      size: [34, 62],
-      sizeEnd: 0.9,
-      gravity: 1500,
-      drag: 0.995,
-      spin: [-7, 7],
-      alphaEnd: 0.85
-    });
-  },
-
-  /** Пыль золота, оседающая после остановки барабана. */
-  reelDust(sys, frame, x, y) {
-    sys.emit({
-      frame, x, y, count: 6,
-      spread: [90, 6],
-      angle: [-Math.PI * 0.75, -Math.PI * 0.25],
-      speed: [60, 170],
-      life: [0.3, 0.6],
-      size: [10, 22],
-      sizeEnd: 0.1,
-      gravity: 420,
-      blend: "lighter"
-    });
-  },
-
-  /** Звёздный вихрь при запуске фриспинов. */
-  starSwirl(sys, frame, x, y, count = 40) {
-    sys.emit({
-      frame, x, y, count,
-      spread: [40, 40],
-      speed: [220, 620],
-      life: [0.9, 1.6],
-      size: [22, 52],
-      sizeEnd: 0.15,
-      gravity: -60,
-      drag: 0.97,
-      spin: [-5, 5],
-      blend: "lighter"
-    });
-  }
-};

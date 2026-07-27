@@ -1,5 +1,22 @@
 node_modules/
 data/
 *.log
+*.sqlite
+*.db
 .env
+.env.local
 .DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+
+# кеш освещённых PBR-плиток и стенды рецептов — пересобираются из исходников
+tools/assets/.cache/
+tools/assets/probe/
+
+# Явное включение docs (отмена глобального .gitignore)
+!docs/
+!docs/**
+

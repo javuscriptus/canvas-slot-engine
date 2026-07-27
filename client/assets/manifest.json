@@ -1,9 +1,11 @@
 {
-  "version": "4ca8bedf8a",
+  "version": "101defa374",
   "scale": {
     "symbols": 2,
     "ui": 2,
-    "images": 1
+    "images": 1,
+    "fx": 1,
+    "symbols_anim": 0.6333333333333333
   },
   "atlases": {
     "symbols": {
@@ -13,6 +15,14 @@
     "ui": {
       "json": "atlas/ui.json",
       "image": "atlas/ui.png"
+    },
+    "fx": {
+      "json": "atlas/fx.json",
+      "image": "atlas/fx.png"
+    },
+    "symbols_anim": {
+      "json": "atlas/symbols_anim.json",
+      "image": "atlas/symbols_anim.png"
     }
   },
   "images": {
@@ -28,23 +38,23 @@
     },
     "banner_big": {
       "file": "img/banner_big.png",
-      "w": 1800,
-      "h": 520
+      "w": 1920,
+      "h": 660
     },
     "banner_mega": {
       "file": "img/banner_mega.png",
-      "w": 1800,
-      "h": 520
+      "w": 1920,
+      "h": 660
     },
     "banner_epic": {
       "file": "img/banner_epic.png",
-      "w": 1800,
-      "h": 520
+      "w": 1920,
+      "h": 660
     },
     "banner_free": {
       "file": "img/banner_free.png",
-      "w": 1800,
-      "h": 520
+      "w": 1920,
+      "h": 660
     },
     "bg_landscape": {
       "file": "img/bg_landscape.webp",
@@ -65,6 +75,186 @@
       "file": "img/bg_portrait_free.webp",
       "w": 1080,
       "h": 1920
+    },
+    "character/char_legs": {
+      "file": "img/character/char_legs.png",
+      "w": 420,
+      "h": 620
+    },
+    "character/char_arm_left": {
+      "file": "img/character/char_arm_left.png",
+      "w": 240,
+      "h": 460
+    },
+    "character/char_body": {
+      "file": "img/character/char_body.png",
+      "w": 480,
+      "h": 620
+    },
+    "character/char_head": {
+      "file": "img/character/char_head.png",
+      "w": 400,
+      "h": 430
+    },
+    "character/char_eyes_open": {
+      "file": "img/character/char_eyes_open.png",
+      "w": 240,
+      "h": 100
+    },
+    "character/char_eyes_half": {
+      "file": "img/character/char_eyes_half.png",
+      "w": 240,
+      "h": 100
+    },
+    "character/char_eyes_closed": {
+      "file": "img/character/char_eyes_closed.png",
+      "w": 240,
+      "h": 100
+    },
+    "character/char_eyes_squint": {
+      "file": "img/character/char_eyes_squint.png",
+      "w": 240,
+      "h": 100
+    },
+    "character/char_moustache": {
+      "file": "img/character/char_moustache.png",
+      "w": 280,
+      "h": 160
+    },
+    "character/char_hat": {
+      "file": "img/character/char_hat.png",
+      "w": 520,
+      "h": 270
+    },
+    "character/char_arm_right": {
+      "file": "img/character/char_arm_right.png",
+      "w": 240,
+      "h": 340
+    },
+    "character/char_hand_glass": {
+      "file": "img/character/char_hand_glass.png",
+      "w": 270,
+      "h": 340
+    },
+    "character/char_idle_blink_0": {
+      "file": "img/character/char_idle_blink_0.png",
+      "w": 240,
+      "h": 100
+    },
+    "character/char_idle_blink_1": {
+      "file": "img/character/char_idle_blink_1.png",
+      "w": 240,
+      "h": 100
+    },
+    "character/char_idle_blink_2": {
+      "file": "img/character/char_idle_blink_2.png",
+      "w": 240,
+      "h": 100
+    },
+    "character/char_glow": {
+      "file": "img/character/char_glow.webp",
+      "w": 860,
+      "h": 1470
+    },
+    "character/char_react_win_0": {
+      "file": "img/character/char_react_win_0.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_win_1": {
+      "file": "img/character/char_react_win_1.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_win_2": {
+      "file": "img/character/char_react_win_2.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_win_3": {
+      "file": "img/character/char_react_win_3.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_win_4": {
+      "file": "img/character/char_react_win_4.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_win_5": {
+      "file": "img/character/char_react_win_5.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_big_0": {
+      "file": "img/character/char_react_big_0.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_big_1": {
+      "file": "img/character/char_react_big_1.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_big_2": {
+      "file": "img/character/char_react_big_2.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_big_3": {
+      "file": "img/character/char_react_big_3.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_big_4": {
+      "file": "img/character/char_react_big_4.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_big_5": {
+      "file": "img/character/char_react_big_5.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_big_6": {
+      "file": "img/character/char_react_big_6.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_big_7": {
+      "file": "img/character/char_react_big_7.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_lose_0": {
+      "file": "img/character/char_react_lose_0.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_lose_1": {
+      "file": "img/character/char_react_lose_1.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_lose_2": {
+      "file": "img/character/char_react_lose_2.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_lose_3": {
+      "file": "img/character/char_react_lose_3.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_lose_4": {
+      "file": "img/character/char_react_lose_4.webp",
+      "w": 440,
+      "h": 583
+    },
+    "character/char_react_lose_5": {
+      "file": "img/character/char_react_lose_5.webp",
+      "w": 440,
+      "h": 583
     }
   },
   "symbols": [
@@ -135,5 +325,567 @@
       "audio/sfx.webm",
       "audio/sfx.mp3"
     ]
+  },
+  "animations": {
+    "anchor_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "anchor_win_0001",
+        "anchor_win_0002",
+        "anchor_win_0003",
+        "anchor_win_0004",
+        "anchor_win_0005",
+        "anchor_win_0006",
+        "anchor_win_0007",
+        "anchor_win_0008"
+      ]
+    },
+    "icecream_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "icecream_win_0001",
+        "icecream_win_0002",
+        "icecream_win_0003",
+        "icecream_win_0004",
+        "icecream_win_0005",
+        "icecream_win_0006",
+        "icecream_win_0007",
+        "icecream_win_0008"
+      ]
+    },
+    "shashlik_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "shashlik_win_0001",
+        "shashlik_win_0002",
+        "shashlik_win_0003",
+        "shashlik_win_0004",
+        "shashlik_win_0005",
+        "shashlik_win_0006",
+        "shashlik_win_0007",
+        "shashlik_win_0008"
+      ]
+    },
+    "hat_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "hat_win_0001",
+        "hat_win_0002",
+        "hat_win_0003",
+        "hat_win_0004",
+        "hat_win_0005",
+        "hat_win_0006",
+        "hat_win_0007",
+        "hat_win_0008"
+      ]
+    },
+    "wine_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "wine_win_0001",
+        "wine_win_0002",
+        "wine_win_0003",
+        "wine_win_0004",
+        "wine_win_0005",
+        "wine_win_0006",
+        "wine_win_0007",
+        "wine_win_0008"
+      ]
+    },
+    "gem_red_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "gem_red_win_0001",
+        "gem_red_win_0002",
+        "gem_red_win_0003",
+        "gem_red_win_0004",
+        "gem_red_win_0005",
+        "gem_red_win_0006",
+        "gem_red_win_0007",
+        "gem_red_win_0008"
+      ]
+    },
+    "gem_amber_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "gem_amber_win_0001",
+        "gem_amber_win_0002",
+        "gem_amber_win_0003",
+        "gem_amber_win_0004",
+        "gem_amber_win_0005",
+        "gem_amber_win_0006",
+        "gem_amber_win_0007",
+        "gem_amber_win_0008"
+      ]
+    },
+    "gem_green_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "gem_green_win_0001",
+        "gem_green_win_0002",
+        "gem_green_win_0003",
+        "gem_green_win_0004",
+        "gem_green_win_0005",
+        "gem_green_win_0006",
+        "gem_green_win_0007",
+        "gem_green_win_0008"
+      ]
+    },
+    "gem_aqua_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "gem_aqua_win_0001",
+        "gem_aqua_win_0002",
+        "gem_aqua_win_0003",
+        "gem_aqua_win_0004",
+        "gem_aqua_win_0005",
+        "gem_aqua_win_0006",
+        "gem_aqua_win_0007",
+        "gem_aqua_win_0008"
+      ]
+    },
+    "gem_purple_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "gem_purple_win_0001",
+        "gem_purple_win_0002",
+        "gem_purple_win_0003",
+        "gem_purple_win_0004",
+        "gem_purple_win_0005",
+        "gem_purple_win_0006",
+        "gem_purple_win_0007",
+        "gem_purple_win_0008"
+      ]
+    },
+    "wild_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "wild_win_0001",
+        "wild_win_0002",
+        "wild_win_0003",
+        "wild_win_0004",
+        "wild_win_0005",
+        "wild_win_0006",
+        "wild_win_0007",
+        "wild_win_0008"
+      ]
+    },
+    "scatter_win": {
+      "atlas": "symbols_anim",
+      "fps": 20,
+      "loop": false,
+      "frames": [
+        "scatter_win_0001",
+        "scatter_win_0002",
+        "scatter_win_0003",
+        "scatter_win_0004",
+        "scatter_win_0005",
+        "scatter_win_0006",
+        "scatter_win_0007",
+        "scatter_win_0008"
+      ]
+    },
+    "scatter_land": {
+      "atlas": "symbols_anim",
+      "fps": 22,
+      "loop": false,
+      "frames": [
+        "scatter_land_0001",
+        "scatter_land_0002",
+        "scatter_land_0003",
+        "scatter_land_0004",
+        "scatter_land_0005",
+        "scatter_land_0006",
+        "scatter_land_0007",
+        "scatter_land_0008",
+        "scatter_land_0009",
+        "scatter_land_0010"
+      ]
+    },
+    "wild_idle": {
+      "atlas": "symbols_anim",
+      "fps": 12,
+      "loop": true,
+      "frames": [
+        "wild_idle_0001",
+        "wild_idle_0002",
+        "wild_idle_0003",
+        "wild_idle_0004",
+        "wild_idle_0005",
+        "wild_idle_0006",
+        "wild_idle_0007",
+        "wild_idle_0008"
+      ]
+    }
+  },
+  "character": {
+    "figure": {
+      "width": 900,
+      "height": 1500
+    },
+    "anchor": [
+      452,
+      1470
+    ],
+    "groups": {
+      "head": {
+        "pivot": [
+          452,
+          500
+        ],
+        "members": [
+          "char_head",
+          "char_eyes_open",
+          "char_eyes_half",
+          "char_eyes_closed",
+          "char_eyes_squint",
+          "char_moustache",
+          "char_hat"
+        ]
+      },
+      "torso": {
+        "pivot": [
+          452,
+          950
+        ],
+        "members": [
+          "char_body",
+          "char_arm_left",
+          "char_arm_right",
+          "char_hand_glass"
+        ]
+      }
+    },
+    "drawOrder": [
+      "char_glow",
+      "char_legs",
+      "char_arm_left",
+      "char_body",
+      "char_head",
+      "char_eyes_open",
+      "char_moustache",
+      "char_hat",
+      "char_arm_right",
+      "char_hand_glass"
+    ],
+    "dir": "img/character",
+    "layers": {
+      "char_glow": {
+        "file": "img/character/char_glow.webp",
+        "x": 20,
+        "y": 30,
+        "w": 860,
+        "h": 1470,
+        "pivot": [
+          450,
+          900
+        ]
+      },
+      "char_legs": {
+        "file": "img/character/char_legs.png",
+        "x": 240,
+        "y": 880,
+        "w": 420,
+        "h": 620,
+        "pivot": [
+          452,
+          950
+        ]
+      },
+      "char_arm_left": {
+        "file": "img/character/char_arm_left.png",
+        "x": 520,
+        "y": 420,
+        "w": 240,
+        "h": 460,
+        "pivot": [
+          582,
+          486
+        ]
+      },
+      "char_body": {
+        "file": "img/character/char_body.png",
+        "x": 210,
+        "y": 390,
+        "w": 480,
+        "h": 620,
+        "pivot": [
+          452,
+          950
+        ]
+      },
+      "char_head": {
+        "file": "img/character/char_head.png",
+        "x": 250,
+        "y": 130,
+        "w": 400,
+        "h": 430,
+        "pivot": [
+          452,
+          500
+        ]
+      },
+      "char_eyes_open": {
+        "file": "img/character/char_eyes_open.png",
+        "x": 310,
+        "y": 275,
+        "w": 240,
+        "h": 100,
+        "pivot": [
+          452,
+          328
+        ]
+      },
+      "char_eyes_half": {
+        "file": "img/character/char_eyes_half.png",
+        "x": 310,
+        "y": 275,
+        "w": 240,
+        "h": 100,
+        "pivot": [
+          452,
+          328
+        ]
+      },
+      "char_eyes_closed": {
+        "file": "img/character/char_eyes_closed.png",
+        "x": 310,
+        "y": 275,
+        "w": 240,
+        "h": 100,
+        "pivot": [
+          452,
+          328
+        ]
+      },
+      "char_eyes_squint": {
+        "file": "img/character/char_eyes_squint.png",
+        "x": 310,
+        "y": 275,
+        "w": 240,
+        "h": 100,
+        "pivot": [
+          452,
+          328
+        ]
+      },
+      "char_moustache": {
+        "file": "img/character/char_moustache.png",
+        "x": 250,
+        "y": 350,
+        "w": 280,
+        "h": 160,
+        "pivot": [
+          376,
+          396
+        ]
+      },
+      "char_hat": {
+        "file": "img/character/char_hat.png",
+        "x": 160,
+        "y": 60,
+        "w": 520,
+        "h": 270,
+        "pivot": [
+          452,
+          250
+        ]
+      },
+      "char_arm_right": {
+        "file": "img/character/char_arm_right.png",
+        "x": 180,
+        "y": 420,
+        "w": 240,
+        "h": 340,
+        "pivot": [
+          340,
+          480
+        ]
+      },
+      "char_hand_glass": {
+        "file": "img/character/char_hand_glass.png",
+        "x": 90,
+        "y": 300,
+        "w": 270,
+        "h": 340,
+        "pivot": [
+          268,
+          572
+        ]
+      }
+    },
+    "idle": {
+      "breath": {
+        "period": 3.4,
+        "layers": {
+          "char_body": {
+            "scaleY": 0.012,
+            "dy": -3,
+            "phase": 0
+          },
+          "char_arm_left": {
+            "rot": 1.1,
+            "dy": -2,
+            "phase": 0.12
+          },
+          "char_arm_right": {
+            "rot": -0.9,
+            "dy": -2,
+            "phase": 0.12
+          },
+          "char_hand_glass": {
+            "rot": -0.7,
+            "dy": -2,
+            "phase": 0.18
+          },
+          "@head": {
+            "dy": -4,
+            "phase": 0.08
+          }
+        }
+      },
+      "sway": {
+        "period": 5.1,
+        "layers": {
+          "@torso": {
+            "rot": 0.8,
+            "phase": 0
+          },
+          "@head": {
+            "rot": -1.4,
+            "phase": 0.25
+          },
+          "char_hat": {
+            "rot": -1.8,
+            "phase": 0.42
+          },
+          "char_moustache": {
+            "rot": 1.2,
+            "phase": 0.5
+          },
+          "char_arm_left": {
+            "rot": 2.2,
+            "phase": 0.3
+          },
+          "char_arm_right": {
+            "rot": -1.6,
+            "phase": 0.35
+          }
+        }
+      },
+      "glass": {
+        "period": 2.3,
+        "layers": {
+          "char_hand_glass": {
+            "rot": 0.6,
+            "dx": 1.5,
+            "phase": 0
+          }
+        }
+      },
+      "glow": {
+        "period": 7.3,
+        "layers": {
+          "char_glow": {
+            "scale": 0.03,
+            "alpha": 0.12,
+            "phase": 0
+          }
+        }
+      }
+    },
+    "blink": {
+      "minGap": 2.6,
+      "maxGap": 6.4,
+      "sequence": [
+        0,
+        1,
+        2,
+        1,
+        0
+      ],
+      "holdMs": [
+        0,
+        45,
+        110,
+        45,
+        0
+      ],
+      "prefix": "char_idle_blink_",
+      "ext": "png",
+      "frames": 3,
+      "box": {
+        "x": 310,
+        "y": 275,
+        "w": 240,
+        "h": 100
+      }
+    },
+    "reactions": {
+      "win": {
+        "fps": 14,
+        "frames": 6,
+        "prefix": "char_react_win_",
+        "ext": "webp",
+        "band": {
+          "x": 60,
+          "y": 0,
+          "w": 800,
+          "h": 1060
+        },
+        "scale": 0.55
+      },
+      "big": {
+        "fps": 15,
+        "frames": 8,
+        "prefix": "char_react_big_",
+        "ext": "webp",
+        "band": {
+          "x": 60,
+          "y": 0,
+          "w": 800,
+          "h": 1060
+        },
+        "scale": 0.55
+      },
+      "lose": {
+        "fps": 11,
+        "frames": 6,
+        "prefix": "char_react_lose_",
+        "ext": "webp",
+        "band": {
+          "x": 60,
+          "y": 0,
+          "w": 800,
+          "h": 1060
+        },
+        "scale": 0.55
+      }
+    }
+  },
+  "layers": {
+    "file": "img/layers/layers.json"
   }
 }

@@ -6,7 +6,21 @@
 
 Ничего не скачивает и не использует чужие сэмплы — значит, нет
 лицензионных рисков при запуске на реальные деньги.
-Результат: client/assets/audio/{sfx.webm,sfx.mp3,sfx.json,music_*.{webm,mp3}}
+
+Нужны numpy и ffmpeg. Если ffmpeg нет в PATH, годится бинарник из пакета
+imageio-ffmpeg (`pip install numpy imageio-ffmpeg`) — он собран с libopus
+и libmp3lame, а это всё, что здесь требуется.
+
+Результат в client/assets/audio/:
+    sfx.json                 карта спрайта, лупов и музыкальных слоёв
+    sfx.{webm,mp3}           спрайт одноразовых эффектов
+    loop_*.{webm,mp3}        бесшовные лупы (вращение, эмбиент моря)
+    stem_*.{webm,mp3}        музыка по слоям: подложка, перкуссия, мелодия
+
+Музыка отдаётся СТЕМАМИ, а не готовым миксом. Готовый микс умеет ровно две
+вещи — играть и не играть, — а слот требует третьей: реагировать на то, что
+сейчас происходит. Слои включаются кроссфейдом на границе такта, поэтому все
+стемы темы обязаны быть одной длины и стартовать одновременно.
 
 ──────────────────────────── о звучании ─────────────────────────────
 
@@ -32,12 +46,20 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import numpy as np
 
 SR = 48000          # частота дискретизации
 OUT = os.path.join(os.path.dirname(__file__), "../../client/assets/audio")
+
+BPM = 100.0                 # темп музыки; от него считаются все музыкальные длины
+BEAT = 60.0 / BPM
+BAR = BEAT * 4
+MUSIC_BARS = 8              # два полных круга андалузской каденции
+MUSIC_LOOP = BAR * MUSIC_BARS
+TENSION_BARS = 2            # слой напряжения короче: он должен вставать чаще
 
 rng = np.random.default_rng(20260726)   # фиксированное зерно → детерминированная сборка
 
@@ -282,6 +304,90 @@ def fade(x, fin=0.004, fout=0.02):
     if no:
         y[-no:] *= np.linspace(1, 0, no)
     return y
+
+
+# ───────────────────────── бесшовные петли ────────────────────────────
+#
+# Петля обязана замыкаться СЭМПЛ В СЭМПЛ и при этом сохранять точную длину:
+# музыкальные слои играются параллельно и расходятся уже на миллисекундах.
+# Прежний приём — кроссфейд хвоста в голову с укорочением петли на длину
+# кроссфейда — для одного готового микса годился, а для стемов нет: петля
+# переставала быть целым числом тактов, и вычислить границу такта, на
+# которой включается слой, становилось нечем.
+#
+# Поэтому здесь другой приём: сигнал рендерится длиннее нужного, а всё,
+# что вылезло за границу петли, ПРИБАВЛЯЕТСЯ к её началу. Реверберационный
+# хвост последнего аккорда приходит на первую долю следующего круга ровно
+# так же, как пришёл бы при непрерывной игре.
+
+def wrap_tail(y, dur):
+    """Свернуть хвост за границей петли обратно в её начало."""
+    n = int(SR * dur)
+    out = y[:n].copy()
+    tail = y[n:]
+    m = min(len(tail), n)
+    if m:
+        out[:m] += tail[:m]
+    return out
+
+
+def add_cyc(buf, seg, start_sec):
+    """Как add_at, но то, что не влезло в конец, продолжается с начала."""
+    n = len(buf)
+    i = int(start_sec * SR) % n
+    seg = seg[:n]
+    head = min(len(seg), n - i)
+    buf[i:i + head] += seg[:head]
+    if len(seg) > head:
+        buf[:len(seg) - head] += seg[head:]
+    return buf
+
+
+def cyc_env(dur, period, phase=0.0, depth=1.0):
+    """
+    Циклическая амплитудная модуляция.
+
+    Период обязан быть точной долей длины петли — иначе на стыке разрыв
+    огибающей слышен щелчком даже там, где сам сигнал сшит идеально.
+    """
+    x = t(dur)
+    k = max(1, round(dur / period))
+    return 1.0 - depth * (0.5 + 0.5 * np.cos(2 * np.pi * k * x / dur + phase))
+
+
+def cyc_noise(dur, low, high):
+    """
+    Шум, замкнутый в кольцо.
+
+    Фильтры здесь работают через БПФ, то есть свёртка круговая: результат
+    периодичен по построению, стык петли не слышен вообще. Это единственная
+    причина, по которой шумовые лупы вообще получаются бесшовными.
+    """
+    return bandpass(rng.normal(0, 1, int(SR * dur)), low, high)
+
+
+def make_ir(decay=1.4, damp=4200):
+    """
+    Импульсный отклик зала.
+
+    Вынесен из reverb() наружу, потому что стемы обязаны складываться
+    ровно в тот микс, из которого посчитаны уровни. Свёртка линейна, сумма
+    свёрток равна свёртке суммы — но только если отклик один и тот же.
+    Раньше reverb() брал новый случайный отклик на каждый вызов, и слои,
+    сведённые по отдельности, давали уже другой звук, чем общий микс.
+    """
+    n = int(SR * decay)
+    ir = rng.uniform(-1, 1, n) * np.exp(-np.linspace(0, 7, n))
+    ir[0] = 1.0
+    ir = lowpass_fast(ir, damp)
+    # Нормировка по энергии, а не по пику: свёртка тогда не меняет
+    # громкость сигнала, и коэффициент mix означает ровно то, что написано.
+    return ir / (np.sqrt((ir ** 2).sum()) or 1.0)
+
+
+def apply_ir(x, ir, mix=0.28):
+    """Реверберация ровно линейная: никаких нормировок по самому сигналу."""
+    return (1 - mix) * x + mix * fft_convolve(x, ir)
 
 
 # ─────────────────────────── инструменты ──────────────────────────────
@@ -610,12 +716,46 @@ def sfx_click():
     return fade(normalize(clave(1.0), 0.5))
 
 
+def sfx_hover():
+    """
+    Наведение на кнопку.
+
+    Единственное требование к этому звуку — чтобы его нельзя было
+    заметить. Указатель проезжает по панели десятки раз за спин, и всё,
+    что громче полушёпота, за минуту превращается в стрекотание.
+    Поэтому шейкер без верхов, 60 мс и уровень втрое ниже щелчка.
+    """
+    dur = 0.07
+    y = mixdown(
+        lowpass_fast(shaker(0.5), 9000),
+        pad(sine(nf("E6"), 0.05) * perc_env(0.05, 0.001, 5) * 0.25, dur),
+    )
+    return fade(normalize(y, 0.16), 0.001, 0.03)
+
+
 def sfx_button():
     y = mixdown(
         nylon(nf("A3"), 0.4, 0.9),
         pad(clave(0.35), 0.4),
     )
     return fade(normalize(y, 0.6))
+
+
+def sfx_press():
+    """
+    Нажатие главной кнопки.
+
+    У «крутить» вес должен отличаться от вкладки в меню: ниже, плотнее,
+    с коротким низом кахона под щелчком. Один и тот же звук на все органы
+    управления — верный признак, что о панели не думали.
+    """
+    dur = 0.35
+    y = mixdown(
+        pad(cajon_bass(0.7), dur),
+        pad(nylon(nf("A2"), 0.32, 0.7), dur),
+        pad(clave(0.4), dur),
+    )
+    return fade(normalize(lowpass_fast(y, 6000), 0.66))
 
 
 def sfx_error():
@@ -640,19 +780,133 @@ def sfx_spin_start():
     return fade(normalize(y, 0.72))
 
 
-def sfx_reel_stop():
-    """Кахон: низ ладонью плюс сухой щелчок по краю."""
-    dur = 0.28
+def sfx_spin_end():
+    """
+    Выход из вращения: воздух уходит вниз, шейкер гаснет.
+
+    Нужен именно отдельным клипом, а не обрывом лупа. Луп можно только
+    выключить, а барабаны не выключаются — они замедляются, и это
+    замедление обязано быть слышно, иначе первый же остановленный барабан
+    звучит так, будто оборвали провод.
+    """
+    dur = 0.5
     y = mixdown(
-        pad(cajon_bass(0.9), dur),
-        pad(cajon_slap(0.5), dur),
-        pad(conga(240, 0.2, 0.35, open_tone=False), dur),
+        sweep(900, 190, dur, "sine") * np.exp(-t(dur) * 3.4) * 0.35,
+        lowpass_fast(noise(dur), 2600) * np.exp(-t(dur) * 5.0) * 0.5,
+        pad(shaker(0.35, closed=False), dur),
     )
-    return fade(normalize(y, 0.75))
+    return fade(normalize(y, 0.5), 0.004, 0.12)
+
+
+def loop_spin(dur=1.2):
+    """
+    Луп вращения барабанов — бесшовный, играет всё вращение целиком.
+
+    До него спин звучал 0.6 с из полутора-трёх секунд реального вращения:
+    начало было, продолжения не было. Слушатель это читает однозначно —
+    «звук кончился», а не «барабаны крутятся».
+
+    Устройство: воздушный шум (сами барабаны), низкий гул подшипника
+    и щелчки проходящих символов. Длина 1.2 с — ровно двенадцать
+    символов при рабочей скорости, поэтому щелчки ложатся в сетку петли
+    и стык не выдаёт себя ритмическим сбоем.
+    """
+    n = int(SR * dur)
+    air = cyc_noise(dur, 420, 5200) * 0.30
+    air *= 0.75 + 0.25 * cyc_env(dur, dur / 3, depth=1.0)
+
+    # Гул: гармоники периода петли, поэтому фаза замыкается точно.
+    x = t(dur)
+    hum = np.zeros(n)
+    for k, a in ((1, 0.5), (2, 0.28), (3, 0.14)):
+        hum += a * np.sin(2 * np.pi * (k * 74.0) * x)
+    hum = lowpass_fast(hum, 260) * 0.22
+
+    ticks = np.zeros(n)
+    step = dur / 12
+    for i in range(12):
+        click = bandpass(noise(0.02), 1600, 8000) * perc_env(0.02, 0.0004, 6)
+        add_cyc(ticks, click * (0.5 if i % 3 else 0.85), i * step)
+
+    y = mixdown(air, hum, ticks * 0.35)
+    return normalize(highpass_fast(y, 90), 0.42)
+
+
+def loop_ambient(dur=8.0):
+    """
+    Фоновый эмбиент моря отдельным лупом.
+
+    В спрайте лежал одиночный накат `wave`, который игра пускала изредка,
+    и между накатами сцена была акустически пуста. Постоянная подложка
+    решает это дешевле любой музыки: море не привлекает внимания и не
+    надоедает, но комната перестаёт быть глухой.
+    """
+    y = surf(dur, 1.0, seamless=True)
+    # Далёкие крики чайки внутри самой петли: одна на восемь секунд,
+    # утоплена реверберацией — иначе она становится событием, а событий
+    # у фоновой подложки быть не должно.
+    far = np.zeros(int(SR * dur))
+    add_cyc(far, gull(0.16, calls=2), dur * 0.62)
+    return normalize(mixdown(y, lowpass_fast(far, 2600)), 0.34)
+
+
+def _reel_stop(index=0, hard=False):
+    """
+    Приземление одного барабана.
+
+    Высота растёт с номером барабана: слева направо, вместе с движением
+    взгляда. Это не украшение — по звуку слышно, какой барабан встал,
+    и пятый удар читается как завершение, а не как ещё один из пяти
+    одинаковых. Раньше игра добивалась того же изменением playbackRate,
+    но скорость меняет и длительность: пятый барабан щёлкал заметно
+    короче первого.
+    """
+    dur = 0.32
+    lift = 2 ** (index * 1.5 / 12.0)          # полтора полутона на барабан
+    y = mixdown(
+        pad(cajon_bass(0.9 if not hard else 1.05), dur),
+        pad(cajon_slap(0.5), dur),
+        pad(conga(240 * lift, 0.22, 0.4, open_tone=False), dur),
+        pad(nylon(nf("A2") * lift, 0.26, 0.35), dur),
+    )
+    if hard:
+        # Барабан, закрывший антисипацию, обязан приземлиться тяжелее
+        # остальных: это точка, ради которой держали паузу.
+        y = mixdown(y, pad(sub_swell(nf("A1"), 0.3, 0.7), dur))
+    return fade(normalize(y, 0.78 if not hard else 0.86))
 
 
 def sfx_symbol_land():
     return fade(normalize(conga(300, 0.16, 0.5, open_tone=False), 0.45))
+
+
+def sfx_tumble_drop():
+    """
+    Каскад: символы падают в освободившиеся ячейки.
+
+    Механика tumble в бою не включена, но звук к ней синтезируется вместе
+    со всем остальным — досинтезировать один клип отдельно от спрайта
+    невозможно, спрайт пересобирается целиком.
+    """
+    dur = 0.5
+    y = np.zeros(int(SR * dur))
+    for i in range(5):
+        at = i * 0.045 + rng.uniform(0, 0.02)
+        add_at(y, conga(260 + 40 * i, 0.16, 0.4, open_tone=False), at)
+        add_at(y, shaker(0.25), at)
+    y = mixdown(y, pad(sweep(700, 320, 0.3, "sine") * perc_env(0.3, 0.002, 2.5) * 0.2, dur))
+    return fade(normalize(y, 0.6))
+
+
+def sfx_tumble_land():
+    """Каскад закончился: сетка снова полна."""
+    dur = 0.45
+    y = mixdown(
+        pad(cajon_bass(0.8), dur),
+        pad(vibraphone(nf("A4"), 0.4, 0.3), dur),
+        pad(shaker(0.3), dur),
+    )
+    return fade(normalize(y, 0.62))
 
 
 def sfx_anticipation():
@@ -662,21 +916,27 @@ def sfx_anticipation():
     Ускоряющаяся дробь конг плюс аккордеон, ползущий вверх по фригийскому
     ладу. Тот же приём, что у живого состава перед кульминацией: не
     «страшный» синтезаторный райзер, а ускорение и повышение.
+
+    Длина подогнана под theme.timings.anticipationHold (1.15 с) с запасом
+    на замедление барабана: клип обязан кончаться ПОСЛЕ остановки, иначе
+    последние доли секунды снова уходят в тишину — ровно та дыра, ради
+    которой всё и переделывалось.
     """
-    dur = 1.8
+    dur = 1.6
     x = t(dur)
 
     # ВНИМАНИЕ: шагу нужен нижний предел. Без него шаг убывает
     # геометрически, сумма сходится к конечному пределу, и цикл никогда
     # не доходит до конца клипа — сборка просто виснет навсегда.
-    MIN_STEP = 0.045
+    MIN_STEP = 0.042
     roll = np.zeros(int(SR * dur))
     step = 0.19
     pos = 0.0
     i = 0
-    while pos < dur - 0.08:
-        add_at(roll, conga(200 + 14 * i, 0.18, 0.5 + 0.5 * pos / dur, open_tone=False), pos)
-        add_at(roll, shaker(0.4 + 0.4 * pos / dur), pos)
+    while pos < dur - 0.06:
+        k = pos / dur
+        add_at(roll, conga(200 + 16 * i, 0.18, 0.45 + 0.55 * k, open_tone=False), pos)
+        add_at(roll, shaker(0.35 + 0.45 * k), pos)
         step = max(MIN_STEP, step * 0.87)
         pos += step
         i += 1
@@ -684,21 +944,87 @@ def sfx_anticipation():
     # E — F — G# — A: фригийский доминантовый подъём к тонике.
     swell = np.zeros(int(SR * dur))
     for k, name in enumerate(["E4", "F4", "G#4", "A4"]):
-        add_at(swell, accordion(nf(name), 0.55, 0.5 + 0.22 * k), 0.28 * k)
+        add_at(swell, accordion(nf(name), 0.55, 0.45 + 0.24 * k), 0.26 * k)
 
-    y = mixdown(roll, swell, surf(dur, 0.5, seamless=False) * np.linspace(0.2, 1, len(x)))
-    return fade(normalize(reverb(y, 1.0, 0.2), 0.72), 0.01, 0.05)
+    # Суб-подъём: его не слышно, но именно он превращает «стало громче»
+    # в «стало тяжелее». Без низа нарастание остаётся плоским.
+    rise = sweep(nf("A1"), nf("A2"), dur, "sine") * np.linspace(0.1, 1.0, len(x)) ** 2 * 0.5
+
+    y = mixdown(roll, swell, rise,
+                surf(dur, 0.45, seamless=False) * np.linspace(0.2, 1, len(x)))
+    return fade(normalize(reverb(y, 1.0, 0.2), 0.76), 0.01, 0.05)
 
 
-def sfx_scatter():
-    """Приземление скаттера: колокол, а поверх — чайка. Курортный акцент."""
+def sfx_anticipation_hit():
+    """
+    Разрешение антисипации в пользу игрока: скаттер сел.
+
+    Удар всем составом и мгновенный взлёт наверх. Разрешение обязано быть
+    отдельным звуком, а не просто следующим скаттером: нарастание без
+    точки в конце воспринимается как обрыв, сколько бы событий за ним
+    ни последовало.
+    """
+    dur = 0.9
     y = mixdown(
-        bell(nf("A5"), 0.9, 1.2, 0.6),
-        bell(nf("E6"), 0.8, 1.0, 0.32),
-        pad(vibraphone(nf("A6"), 0.7, 0.35), 0.9),
-        pad(gull(0.5, calls=1), 0.9),
+        pad(cajon_bass(1.0), dur),
+        pad(sub_swell(nf("A1"), 0.5, 0.9), dur),
+        pad(bell(nf("A5"), 0.8, 1.3, 0.55), dur),
+        pad(arp(["A5", "C#6", "E6"], 0.05, 0.8, inst=celesta, amp=0.7, tail=0.6), dur),
+        pad(rasgueado(chord(["A3", "C#4", "E4", "A4"]), 0.45, 0.8), dur),
     )
-    return fade(normalize(reverb(y, 1.4, 0.3), 0.8))
+    return fade(normalize(reverb(y, 1.3, 0.3), 0.84))
+
+
+def sfx_anticipation_miss():
+    """
+    Разрешение не в пользу игрока: барабан встал пустым.
+
+    Спад вместо удара — аккордеон уходит с G# на F, воздух стравливается.
+    Звучит разочарованно намеренно: разочарование, которое признали,
+    переносится легче тишины, которая делает вид, что ничего не было.
+    """
+    dur = 0.7
+    y = mixdown(
+        pad(accordion(nf("G#3"), 0.4, 0.5), dur),
+        add_at(np.zeros(int(SR * dur)), accordion(nf("F3"), 0.42, 0.42), 0.16),
+        sweep(420, 170, dur, "sine") * np.exp(-t(dur) * 3.0) * 0.22,
+        pad(shaker(0.25, closed=False), dur),
+    )
+    return fade(normalize(lowpass_fast(y, 3200), 0.44), 0.01, 0.15)
+
+
+# Скаттеры звучат по нарастающей: каждый следующий выше, длиннее и
+# плотнее предыдущего. Одинаковый звон на первом и на третьем скаттере —
+# это прямая потеря напряжения ровно в тот момент, когда напряжение и есть
+# весь смысл происходящего. Ступени берутся из фригийского лада, чтобы
+# эскалация оставалась внутри гармонии темы.
+SCATTER_STEPS = [
+    ("A5", "E6", 0.9, 0.0),
+    ("C#6", "A6", 1.0, 0.25),
+    ("E6", "C#7", 1.15, 0.55),
+    ("A6", "E7", 1.35, 1.0),
+]
+
+
+def _scatter(step=0):
+    """Скаттер ступени step (0…3): выше, ярче и тяжелее с каждым шагом."""
+    low, high, dur, tension = SCATTER_STEPS[min(step, len(SCATTER_STEPS) - 1)]
+    y = mixdown(
+        pad(bell(nf(low), dur * 0.95, 1.2 + 0.3 * tension, 0.6), dur),
+        pad(bell(nf(high), dur * 0.8, 1.0, 0.3), dur),
+        pad(vibraphone(nf(high), dur * 0.7, 0.35), dur),
+        pad(gull(0.5 - 0.2 * tension, calls=1), dur),
+    )
+    if tension > 0:
+        # Чем ближе к бонусу, тем больше веса снизу и тем длиннее хвост:
+        # третий скаттер должен ощущаться физически, а не только звенеть.
+        y = mixdown(
+            y,
+            pad(sub_swell(nf("A1"), dur * 0.7, 0.5 * tension), dur),
+            pad(cajon_bass(0.4 + 0.4 * tension), dur),
+            pad(rasgueado(chord(["A3", "C#4", "E4"]), 0.4, 0.35 * tension), dur),
+        )
+    return fade(normalize(reverb(y, 1.4 + 0.5 * tension, 0.3), 0.8 + 0.06 * tension))
 
 
 def arp(names, note=0.09, dur_total=None, inst=nylon, amp=1.0, tail=0.6):
@@ -786,6 +1112,128 @@ def sfx_win_big():
         add_at(y, glass(nf(n), 1.2, 0.3), 0.55 + i * 0.18)
 
     return fade(normalize(reverb(y, 1.7, 0.34), 0.88))
+
+
+def _brass_bar(notes, root, length, amp=1.0, bright=1.2):
+    """Один аккорд полным составом: медь, бас, подушка, расгеадо."""
+    n = int(SR * length)
+    y = mixdown(
+        pad(mixdown(*[flugel(nf(x), length, 0.9 * amp, bright=bright) for x in notes]), length),
+        pad(upright_bass(nf(root), length, 0.95 * amp), length),
+        pad(choir(chord(notes), length, 0.62 * amp), length),
+        pad(rasgueado(chord(notes), min(length, 0.5), 0.65 * amp), length),
+    )
+    return y[:n]
+
+
+def sfx_win_mega():
+    """
+    Мега-выигрыш: ступень между крупным и эпическим.
+
+    Раньше mega и epic делили одну фанфару, и игрок, взявший в три раза
+    больше, слышал ровно то же самое. Здесь оборот короче эпического
+    (четыре аккорда против восьми) и на терцию ниже: разница слышна сразу,
+    даже если два выигрыша разделены получасом.
+    """
+    dur = 3.4
+    beat = 0.52
+    prog = [(["F3", "A3", "C4"], "F2"), (["G3", "B3", "D4"], "G2"),
+            (["A3", "C4", "E4"], "A2"), (["C4", "E4", "G4"], "C2")]
+
+    y = np.zeros(int(SR * dur))
+    for i, (notes, root) in enumerate(prog):
+        last = i == len(prog) - 1
+        add_at(y, _brass_bar(notes, root, beat * (3.2 if last else 1.05), 0.95), i * beat)
+
+    perc = np.zeros(int(SR * dur))
+    for i in range(int(dur / (beat / 2))):
+        at = i * beat / 2
+        add_at(perc, cajon_bass(0.75) if i % 4 == 0 else cajon_slap(0.45), at)
+        add_at(perc, shaker(0.3), at)
+    for i in range(len(prog)):
+        add_at(perc, clave(0.45), i * beat)
+
+    add_at(y, arp(PENTA, 0.055, 1.7, inst=celesta, amp=0.8, tail=0.9), beat * 3)
+    add_at(y, sub_swell(nf("C2"), 1.5, 0.7), beat * 3)
+    add_at(y, guiro(0.45, 0.5, 18), beat * 2.6)
+
+    return fade(normalize(reverb(mixdown(y, perc * 0.7), 1.8, 0.32), 0.9))
+
+
+def sfx_win_epic():
+    """
+    Эпический выигрыш: восемь тактов с модуляцией на кварту вверх.
+
+    Единственный звук в игре, которому позволено длиться почти пять
+    секунд, и единственный с модуляцией. Смена тональности на середине —
+    самый дешёвый из известных способов сказать «стало ещё больше»:
+    слух воспринимает её как второе дыхание, и работает это даже
+    у тех, кто не назовёт, что именно произошло.
+    """
+    dur = 4.6
+    beat = 0.5
+    # До мажор, затем тот же оборот квартой выше — фа мажор.
+    prog = [(["C4", "E4", "G4"], "C2"), (["A3", "C4", "E4"], "A2"),
+            (["F3", "A3", "C4"], "F2"), (["G3", "B3", "D4"], "G2"),
+            (["F4", "A4", "C5"], "F2"), (["D4", "F4", "A4"], "D2"),
+            (["Bb3", "D4", "F4"], "Bb1"), (["F4", "A4", "C5"], "F2")]
+
+    y = np.zeros(int(SR * dur))
+    for i, (notes, root) in enumerate(prog):
+        last = i == len(prog) - 1
+        add_at(y, _brass_bar(notes, root, beat * (3.4 if last else 1.05), 1.0, bright=1.35), i * beat)
+
+    perc = np.zeros(int(SR * dur))
+    for i in range(int(dur / (beat / 2))):
+        at = i * beat / 2
+        add_at(perc, cajon_bass(0.8) if i % 4 == 0 else cajon_slap(0.5), at)
+        add_at(perc, shaker(0.32), at)
+        if i % 8 == 7:
+            add_at(perc, conga(nf("A3"), 0.26, 0.4), at)
+    for i in range(len(prog)):
+        add_at(perc, clave(0.5), i * beat)
+
+    # Точка модуляции подчёркнута отдельно: без удара и гуиро смена
+    # тональности проходит незамеченной и вся затея теряет смысл.
+    add_at(y, guiro(0.6, 0.5, 20), beat * 3.4)
+    add_at(y, sub_swell(nf("F1"), 1.2, 0.9), beat * 4)
+
+    add_at(y, arp(PENTA + PENTA[3:], 0.05, 2.2, inst=celesta, amp=0.9, tail=1.2), beat * 7)
+    add_at(y, arp(PENTA[3:], 0.05, 1.6, inst=vibraphone, amp=0.45, tail=0.9), beat * 7.2)
+    add_at(y, sub_swell(nf("F1"), 1.8, 0.9), beat * 7)
+    for i, n in enumerate(["C6", "F6", "A6"]):
+        add_at(y, glass(nf(n), 1.4, 0.32), beat * 7.3 + i * 0.2)
+    add_at(y, gull(0.3, calls=2), beat * 7.6)
+
+    return fade(normalize(reverb(mixdown(y, perc * 0.72), 2.1, 0.34), 0.94))
+
+
+def sfx_buy_bonus():
+    """
+    Покупка бонуса: деньги ушли, фриспины куплены.
+
+    Сознательно построен наоборот относительно выигрыша — сначала
+    металлический пересчёт монет (игрок платит), и только потом
+    аккордеонный разлив (игрок получает). Порядок читается однозначно,
+    и звук нельзя перепутать с выигрышем, что для платной механики важно.
+    """
+    dur = 2.2
+    y = np.zeros(int(SR * dur))
+
+    pos = 0.0
+    while pos < 0.7:
+        f = nf(COIN_NOTES[rng.integers(0, 4)])
+        add_at(y, metallic_clink(0.16, f, 0.45), pos)
+        pos += rng.uniform(0.05, 0.09)
+
+    add_at(y, guiro(0.55, 0.5, 18), 0.55)
+    for k, name in enumerate(["A3", "C#4", "E4", "A4"]):
+        add_at(y, accordion(nf(name), 1.15, 0.8), 0.95 + 0.09 * k)
+    add_at(y, arp(["A5", "C#6", "E6", "A6"], 0.11, 1.2, inst=vibraphone, amp=0.5), 0.95)
+    add_at(y, cajon_bass(0.9), 0.95)
+    add_at(y, sub_swell(nf("A1"), 1.1, 0.7), 0.95)
+
+    return fade(normalize(reverb(y, 1.5, 0.3), 0.86))
 
 
 # Ноты, по которым «настроены» монеты. Случайный звон — это шум;
@@ -899,10 +1347,31 @@ def sfx_win_count_tick():
     ему высоту по ходу счёта. Поэтому это мягкий колокольчик, а не
     деревянный щелчок: щелчок на тридцатом повторе раздражает, а
     восходящий звон читается как нарастание — то самое, что и нужно.
+
+    Основной тон — C6, а не E6: клип играется с изменённой скоростью
+    в диапазоне примерно 0.9…1.9, и от E6 верхние тики уходят туда, где
+    дешёвый динамик уже звенит одним призвуком без основного тона.
     """
-    dur = 0.18
-    y = celesta(nf("E6"), dur, 0.6, bright=0.7)
-    return fade(normalize(y, 0.3), 0.001, 0.05)
+    dur = 0.15
+    y = celesta(nf("C6"), dur, 0.6, bright=0.7)
+    return fade(normalize(y, 0.3), 0.001, 0.04)
+
+
+def sfx_count_end():
+    """
+    Точка в конце докрутки суммы.
+
+    Тики уезжают вверх и обрываются на произвольной высоте — на слух это
+    незавершённая фраза. Один разрешающий аккорд стоит копейки и снимает
+    ощущение, что счётчик оборвали.
+    """
+    dur = 0.8
+    y = mixdown(
+        pad(mixdown(*[celesta(nf(n), 0.7, 0.5) for n in ["C6", "E6", "G6"]]), dur),
+        pad(vibraphone(nf("C5"), 0.6, 0.3), dur),
+        pad(shaker(0.25), dur),
+    )
+    return fade(normalize(reverb(y, 1.1, 0.28), 0.5), 0.002, 0.12)
 
 
 def sfx_transition():
@@ -991,13 +1460,24 @@ def build_music(theme="base", return_stems=False):
     Длина выбрана не «на глаз»: восемь тактов — это два полных круга
     андалузской каденции, поэтому петля замыкается на гармонически
     правильном месте и стык не слышен даже без кроссфейда.
+
+    return_stems=True отдаёт партии по отдельности — именно в этом виде
+    музыка и уезжает в игру. Слои сведены так, что их сумма равна общему
+    миксу до последнего децибела: обработка линейна, реверберационный
+    отклик у всех слоёв один и тот же, а итоговый множитель громкости
+    считается по сумме и применяется ко всем одинаково. Стем, нормированный
+    сам по себе, сломал бы баланс в тот момент, когда игра включит его
+    поверх остальных.
     """
-    bpm = 100.0
-    beat = 60.0 / bpm
-    bar = beat * 4
-    bars = 8
-    dur = bar * bars
-    n = int(SR * dur)
+    beat = BEAT
+    bar = BAR
+    bars = MUSIC_BARS
+    dur = MUSIC_LOOP
+
+    # Запас за границей петли: длинные ноты последнего такта и хвост
+    # реверберации досчитываются целиком, а потом сворачиваются в начало.
+    TAIL = bar
+    n = int(SR * (dur + TAIL))
 
     night = theme != "base"
     prog = PROG_FREE if night else PROG_BASE
@@ -1043,7 +1523,6 @@ def build_music(theme="base", return_stems=False):
                    at(base_beat) + 0.012 * k)
 
     # ── перкуссия ────────────────────────────────────────────────────
-    eighth = beat / 2
     for i in range(bars * 8):
         pos = at(i * 0.5)
         step = i % 8
@@ -1083,45 +1562,89 @@ def build_music(theme="base", return_stems=False):
     # ── море ─────────────────────────────────────────────────────────
     # Прибой — подложка, а не инструмент. Громче этого он перестаёт быть
     # морем и становится шипением ленты под музыкой.
-    sea = surf(dur, 0.24 if night else 0.30)
+    sea = pad(surf(dur, 0.24 if night else 0.30), dur + TAIL)
 
     # Уровни выставлены по замеру стемов, а не на глаз: гармоническая
     # подушка (гитара и аккордеон) изначально сидела на 10 дБ ниже
     # мелодии и перкуссии, из-за чего тема звучала как соло под метроном.
-    music = mixdown(
-        guitars * 1.55,
-        bassline * 1.1,
-        reeds * (1.45 if night else 1.3),
-        perc * (0.95 if night else 0.85),
-        lead * (0.85 if night else 1.15),
-        sea,
-    )
+    guitars *= 1.55
+    bassline *= 1.1
+    reeds *= 1.45 if night else 1.3
+    perc *= 0.95 if night else 0.85
+    lead *= 0.85 if night else 1.15
 
-    music = reverb(music, 1.6 if night else 1.1, 0.24 if night else 0.17)
-    if return_stems:
-        # Диагностика сведения: без разбора по партиям невозможно понять,
-        # какая из них съедает диапазон — на слух и по общему спектру
-        # это только гадание.
-        return {"гитара": guitars * 1.55, "бас": bassline * 1.1,
-                "аккордеон": reeds * (1.45 if night else 1.3),
-                "перкуссия": perc * (0.95 if night else 0.85),
-                "мелодия": lead * (0.85 if night else 1.15), "море": sea}
+    # Разбиение на слои. Ночью перкуссия уходит в подложку: фриспины
+    # короткие, и играть их «без ритма» смысла нет — а вот мелодия
+    # по-прежнему включается только на выигрыше.
+    if night:
+        groups = {"bed": mixdown(guitars, bassline, reeds, sea, perc), "lead": lead}
+    else:
+        groups = {"bed": mixdown(guitars, bassline, reeds, sea),
+                  "perc": perc, "lead": lead}
 
-    music = mix_bus(music, air=3.0, mud=-3.0)
+    ir = make_ir(1.6 if night else 1.1, damp=4200)
+    wet = 0.24 if night else 0.17
+    layers = {k: wrap_tail(mix_bus(apply_ir(v, ir, wet), air=3.0, mud=-3.0), dur)
+              for k, v in groups.items()}
+
+    full = mixdown(*layers.values())
 
     # Выравнивание по громкости, а не по пику. Ночная тема плотнее
     # базовой: при нормализации по пику она получается заметно громче,
     # и переход в бонус звучит как скачок уровня, а не как смена темы.
     TARGET_RMS = 0.075
-    music *= TARGET_RMS / (np.sqrt((music ** 2).mean()) or 1.0)
-    peak = np.max(np.abs(music)) or 1.0
+    gain = TARGET_RMS / (np.sqrt((full ** 2).mean()) or 1.0)
+    peak = np.max(np.abs(full * gain)) or 1.0
     if peak > 0.85:
-        music *= 0.85 / peak
+        gain *= 0.85 / peak
 
-    # Кроссфейд «хвоста» в начало — страховка от щелчка на стыке петли.
-    xf = int(SR * 0.12)
-    music[:xf] = music[:xf] * np.linspace(0, 1, xf) + music[-xf:] * np.linspace(1, 0, xf)
-    return music[:-xf]
+    if return_stems:
+        return {k: v * gain for k, v in layers.items()}
+    return full * gain
+
+
+def build_tension():
+    """
+    Слой напряжения: два такта, поверх любой из тем.
+
+    Включается на антисипации и на сериях без выигрыша. Гармонически
+    нейтрален — педаль на ля, которая одинаково законна и в ля миноре
+    базовой темы, и в ре миноре бонусной (там ля — доминанта). Поэтому
+    слой не нужно делать в двух вариантах, а игре не нужно знать, какая
+    тема сейчас играет.
+
+    Внутри — ровный ход, а не крещендо. Крещендо в петле означает пилу:
+    каждые пять секунд напряжение падало бы к нулю и начиналось заново,
+    что читается как сбой, а не как нарастание.
+    """
+    dur = BAR * TENSION_BARS
+    TAIL = BAR
+    n = int(SR * (dur + TAIL))
+
+    drone = np.zeros(n)
+    for name, amp in (("A2", 0.5), ("E3", 0.34), ("A3", 0.22)):
+        add_at(drone, accordion(nf(name), dur + TAIL * 0.6, amp), 0.0)
+    add_at(drone, sub_swell(nf("A1"), dur + TAIL * 0.5, 0.55), 0.0)
+
+    pulse = np.zeros(n)
+    sixteenth = BEAT / 4
+    for i in range(int(dur / sixteenth)):
+        at = i * sixteenth
+        add_at(pulse, shaker(0.22 if i % 2 else 0.3), at)
+        if i % 4 == 0:
+            add_at(pulse, conga(nf("A2"), 0.22, 0.3, open_tone=False), at)
+        if i % 8 == 6:
+            add_at(pulse, cajon_slap(0.32), at)
+    for b in range(TENSION_BARS):
+        add_at(pulse, cajon_bass(0.6), b * BAR)
+        add_at(pulse, guiro(0.28, BEAT, 10), b * BAR + BEAT * 3)
+
+    ir = make_ir(1.4, damp=3600)
+    y = wrap_tail(mix_bus(apply_ir(mixdown(drone, pulse * 0.8), ir, 0.22),
+                          air=1.5, mud=-2.0), dur)
+    # Тот же целевой уровень, что у стемов темы: слой встаёт поверх них
+    # и не должен требовать отдельной подстройки громкости в игре.
+    return y * (0.055 / (np.sqrt((y ** 2).mean()) or 1.0))
 
 
 # ────────────────────────────── экспорт ───────────────────────────────
@@ -1130,61 +1653,145 @@ def to_int16(x):
     return np.clip(x, -1, 1)
 
 
-def write_wav(path, mono, stereo_width=0.0):
+def write_wav(path, mono):
+    """
+    Всё пишется в моно.
+
+    Стерео здесь было бы удвоением веса ради эффекта, который игра всё
+    равно строит сама: панораму барабанов и ширину музыкальных слоёв
+    задаёт Web Audio на своей стороне, покадрово и по номеру барабана.
+    Записанное в файл стерео этому только мешало бы — сдвинуть уже
+    разведённый сигнал по панораме нельзя.
+    """
     import wave
-    if stereo_width > 0:
-        delay = int(SR * 0.008 * stereo_width)
-        left = np.concatenate([mono, np.zeros(delay)])
-        right = np.concatenate([np.zeros(delay), mono])
-        data = np.stack([left, right], axis=1)
-    else:
-        data = np.stack([mono, mono], axis=1)
-    pcm = (to_int16(data) * 32767).astype(np.int16)
+    pcm = (to_int16(mono) * 32767).astype(np.int16)
     with wave.open(path, "wb") as w:
-        w.setnchannels(2)
+        w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(SR)
         w.writeframes(pcm.tobytes())
 
 
-def encode(src_wav, dst_base):
+def _ffmpeg():
+    """
+    Путь к ffmpeg.
+
+    Сначала PATH — если он в системе есть, берём системный. Если нет,
+    подходит бинарник из пакета imageio-ffmpeg: он ставится через pip
+    вместе с остальным инструментарием и содержит нужные кодировщики
+    (libopus, libmp3lame). Это сборочная зависимость, в боевой код
+    она не попадает.
+    """
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        sys.exit("ffmpeg не найден. Поставьте его в PATH "
+                 "или выполните: pip install imageio-ffmpeg")
+
+
+def encode(src_wav, dst_base, opus_kbps=64, mp3_q=5):
     """WebM/Opus — основной формат, MP3 — резерв для старых iOS."""
+    ff = _ffmpeg()
     subprocess.run(
-        ["ffmpeg", "-y", "-loglevel", "error", "-i", src_wav,
-         "-c:a", "libopus", "-b:a", "96k", "-vbr", "on", f"{dst_base}.webm"],
+        # -bitexact убирает из контейнера случайный SegmentUID и версию
+        # мультиплексора. Без него один и тот же звук даёт разные файлы при
+        # каждой сборке, а версия ассетов считается по их содержимому —
+        # игроки получали бы «новый» звук после любой пересборки графики.
+        [ff, "-y", "-loglevel", "error", "-fflags", "+bitexact", "-i", src_wav,
+         "-c:a", "libopus", "-b:a", f"{opus_kbps}k", "-vbr", "on",
+         "-ac", "1", "-flags:a", "+bitexact", "-fflags", "+bitexact",
+         f"{dst_base}.webm"],
         check=True)
     subprocess.run(
-        ["ffmpeg", "-y", "-loglevel", "error", "-i", src_wav,
-         "-c:a", "libmp3lame", "-q:a", "4", f"{dst_base}.mp3"],
+        [ff, "-y", "-loglevel", "error", "-i", src_wav,
+         "-c:a", "libmp3lame", "-q:a", str(mp3_q), "-ac", "1", f"{dst_base}.mp3"],
         check=True)
+
+
+def emit(name, samples, opus_kbps, mp3_q):
+    """Свести один сигнал в оба формата и убрать временный WAV."""
+    wav = os.path.join(OUT, f"_{name}.wav")
+    write_wav(wav, samples)
+    encode(wav, os.path.join(OUT, name), opus_kbps, mp3_q)
+    os.remove(wav)
 
 
 SFX = [
     ("click", sfx_click),
+    ("hover", sfx_hover),
     ("button", sfx_button),
+    ("press", sfx_press),
     ("error", sfx_error),
+
     ("spin_start", sfx_spin_start),
-    ("reel_stop", sfx_reel_stop),
+    ("spin_end", sfx_spin_end),
+    *[(f"reel_stop_{i + 1}", (lambda i=i: _reel_stop(i))) for i in range(5)],
+    ("reel_stop_hard", lambda: _reel_stop(4, hard=True)),
     ("symbol_land", sfx_symbol_land),
+
     ("anticipation", sfx_anticipation),
-    ("scatter", sfx_scatter),
+    ("anticipation_hit", sfx_anticipation_hit),
+    ("anticipation_miss", sfx_anticipation_miss),
+    *[(f"scatter_{i + 1}", (lambda i=i: _scatter(i))) for i in range(4)],
+
     ("win_small", sfx_win_small),
     ("win_medium", sfx_win_medium),
     ("win_big", sfx_win_big),
+    ("win_mega", sfx_win_mega),
+    ("win_epic", sfx_win_epic),
     ("coins", sfx_coins),
+    ("tick", sfx_win_count_tick),
+    ("count_end", sfx_count_end),
+
     ("fanfare", sfx_fanfare),
     ("freespins", sfx_freespins),
-    ("tick", sfx_win_count_tick),
+    ("buy_bonus", sfx_buy_bonus),
     ("transition", sfx_transition),
+
+    ("tumble_drop", sfx_tumble_drop),
+    ("tumble_land", sfx_tumble_land),
     ("gull", sfx_gull),
     ("wave", sfx_wave),
 ]
 
-GAP = 0.25   # тишина между эффектами: страхует от «наезда» при неточном seek
+# Прежние имена продолжают работать и не стоят ни одного лишнего байта:
+# запись в спрайте — это пара «смещение, длина», и две записи спокойно
+# указывают на один и тот же кусок звука.
+SFX_ALIASES = {
+    "scatter": "scatter_1",
+    "reel_stop": "reel_stop_1",
+}
+
+# Лупы вынесены из спрайта в отдельные файлы намеренно. Зацикливание
+# участка спрайта требует попадания в границы с точностью до сэмпла, а
+# декодеры MP3 добавляют собственные отступы в начале и в конце потока —
+# на стыке появляется щелчок, который никак не убрать из игры.
+LOOPS = [
+    ("loop_spin", loop_spin),
+    ("loop_ambient", loop_ambient),
+]
+
+GAP = 0.2    # тишина между эффектами: страхует от «наезда» при неточном seek
+
+SFX_BITRATE, SFX_MP3Q = 64, 5
+LOOP_BITRATE, LOOP_MP3Q = 56, 6
+STEM_BITRATE, STEM_MP3Q = 48, 7
 
 
 def main():
+    # Консоль Windows по умолчанию отдаёт cp1252, и первая же строка
+    # отчёта на русском роняет сборку с UnicodeEncodeError — до того,
+    # как будет посчитан хоть один звук.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     os.makedirs(OUT, exist_ok=True)
+    for f in os.listdir(OUT):
+        os.remove(os.path.join(OUT, f))
 
     print("→ SFX")
     clips = []
@@ -1197,27 +1804,50 @@ def main():
         clips.append(y)
         clips.append(np.zeros(int(SR * GAP)))
         cursor += dur + GAP
-        print(f"   {name:<14} {dur:5.2f} с")
+        print(f"   {name:<18} {dur:5.2f} с")
+    for alias, target in SFX_ALIASES.items():
+        sprite[alias] = sprite[target]
 
     # Общий запас по уровню: Opus/MP3 дают интерсэмпловые выбросы,
     # и спрайт, сведённый «в потолок», начинает клиппировать после кодирования.
-    sprite_audio = normalize(np.concatenate(clips), 0.75)
-    wav = os.path.join(OUT, "_sfx.wav")
-    write_wav(wav, sprite_audio)
-    encode(wav, os.path.join(OUT, "sfx"))
-    os.remove(wav)
+    emit("sfx", normalize(np.concatenate(clips), 0.75), SFX_BITRATE, SFX_MP3Q)
 
-    with open(os.path.join(OUT, "sfx.json"), "w") as f:
-        json.dump({"sprite": sprite}, f, indent=2)
+    print("→ лупы")
+    loops = {}
+    for name, fn in LOOPS:
+        y = fn()
+        emit(name, y, LOOP_BITRATE, LOOP_MP3Q)
+        loops[name.replace("loop_", "")] = {"file": name, "dur": round(len(y) / SR, 4)}
+        print(f"   {name:<18} {len(y) / SR:5.2f} с")
 
-    for theme, fname in (("base", "music_base"), ("free", "music_free")):
-        print(f"→ музыка {theme}")
-        m = build_music(theme)
-        wav = os.path.join(OUT, f"_{fname}.wav")
-        write_wav(wav, m, stereo_width=0.6)
-        encode(wav, os.path.join(OUT, fname))
-        os.remove(wav)
-        print(f"   {len(m) / SR:.2f} с петля")
+    print("→ музыкальные слои")
+    themes = {}
+    for theme in ("base", "free"):
+        stems = build_music(theme, return_stems=True)
+        themes[theme] = {}
+        for layer, y in stems.items():
+            name = f"stem_{theme}_{layer}"
+            emit(name, y, STEM_BITRATE, STEM_MP3Q)
+            themes[theme][layer] = name
+            print(f"   {name:<18} {len(y) / SR:5.2f} с")
+
+    tension = build_tension()
+    emit("stem_tension", tension, STEM_BITRATE, STEM_MP3Q)
+    print(f"   {'stem_tension':<18} {len(tension) / SR:5.2f} с")
+
+    meta = {
+        "sprite": sprite,
+        "loops": loops,
+        "music": {
+            "bpm": BPM,
+            "bar": round(BAR, 4),
+            "loop": round(MUSIC_LOOP, 4),
+            "themes": themes,
+            "tension": {"file": "stem_tension", "dur": round(len(tension) / SR, 4)},
+        },
+    }
+    with open(os.path.join(OUT, "sfx.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2)
 
     total = sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT))
     print(f"✓ звук готов, {total / 1024:.0f} КБ")

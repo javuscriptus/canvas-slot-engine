@@ -1,0 +1,1165 @@
+{
+ "version": 2,
+ "generator": "tools/assets/scenery.mjs",
+ "overscan": 0.15,
+ "light": {
+  "azimuth": 135,
+  "elevation": 55,
+  "screen": "сверху-слева"
+ },
+ "order": [
+  "sky",
+  "stars",
+  "sun",
+  "moon",
+  "clouds_far",
+  "mountains",
+  "clouds_near",
+  "lights",
+  "sea",
+  "sea_glitter",
+  "surf",
+  "pebbles",
+  "palm_left",
+  "palm_right",
+  "vignette"
+ ],
+ "scenes": {
+  "day": {
+   "landscape": {
+    "canvas": [
+     2208,
+     1242
+    ],
+    "view": [
+     1920,
+     1080
+    ],
+    "offset": [
+     144,
+     81
+    ],
+    "horizon": 529,
+    "sun": [
+     538,
+     389
+    ],
+    "layers": [
+     {
+      "name": "sky",
+      "z": 0,
+      "file": "img/layers/day_land_sky.webp",
+      "x": 0,
+      "y": 0,
+      "w": 2208,
+      "h": 1242,
+      "parallax": [
+       0.02,
+       0.01
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "sun",
+      "z": 2,
+      "file": "img/layers/day_land_sun.webp",
+      "x": 0,
+      "y": 0,
+      "w": 1301,
+      "h": 1189,
+      "parallax": [
+       0.05,
+       0.03
+      ],
+      "motion": {
+       "type": "pulse",
+       "period": 6,
+       "scale": 0.045,
+       "alpha": 0.14
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "clouds_far",
+      "z": 3,
+      "file": "img/layers/day_land_clouds_far.webp",
+      "x": 15,
+      "y": 261,
+      "w": 2164,
+      "h": 302,
+      "parallax": [
+       0.09,
+       0.04
+      ],
+      "motion": {
+       "type": "drift",
+       "speedX": 3.2,
+       "wrap": true
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "mountains",
+      "z": 4,
+      "file": "img/layers/day_land_mountains.webp",
+      "x": 0,
+      "y": 418,
+      "w": 2208,
+      "h": 116,
+      "parallax": [
+       0.14,
+       0.06
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "clouds_near",
+      "z": 5,
+      "file": "img/layers/day_land_clouds_near.webp",
+      "x": 30,
+      "y": 71,
+      "w": 2161,
+      "h": 474,
+      "parallax": [
+       0.22,
+       0.09
+      ],
+      "motion": {
+       "type": "drift",
+       "speedX": 9,
+       "wrap": true
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "sea",
+      "z": 7,
+      "file": "img/layers/day_land_sea.webp",
+      "x": 0,
+      "y": 529,
+      "w": 2208,
+      "h": 713,
+      "parallax": [
+       0.3,
+       0.13
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "sea_glitter",
+      "z": 8,
+      "file": "img/layers/day_land_sea_glitter.webp",
+      "x": 124,
+      "y": 527,
+      "w": 861,
+      "h": 715,
+      "parallax": [
+       0.3,
+       0.13
+      ],
+      "motion": {
+       "type": "shimmer",
+       "period": 1.7,
+       "amount": 0.45,
+       "driftX": 2
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "surf",
+      "z": 9,
+      "file": "img/layers/day_land_surf.webp",
+      "x": 0,
+      "y": 810,
+      "w": 2208,
+      "h": 162,
+      "parallax": [
+       0.46,
+       0.2
+      ],
+      "motion": {
+       "type": "surge",
+       "period": 5.2,
+       "amountY": 9,
+       "amountAlpha": 0.25
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "pebbles",
+      "z": 10,
+      "file": "img/layers/day_land_pebbles.webp",
+      "x": 0,
+      "y": 922,
+      "w": 2208,
+      "h": 320,
+      "parallax": [
+       0.62,
+       0.28
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "palm_left",
+      "z": 11,
+      "file": "img/layers/day_land_palm_left.webp",
+      "x": 0,
+      "y": 468,
+      "w": 759,
+      "h": 774,
+      "parallax": [
+       0.8,
+       0.34
+      ],
+      "motion": {
+       "type": "sway",
+       "period": 7.4,
+       "angle": 1.5,
+       "pivot": [
+        0.32,
+        1
+       ]
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "palm_right",
+      "z": 12,
+      "file": "img/layers/day_land_palm_right.webp",
+      "x": 1553,
+      "y": 0,
+      "w": 655,
+      "h": 1242,
+      "parallax": [
+       0.92,
+       0.4
+      ],
+      "motion": {
+       "type": "sway",
+       "period": 6.1,
+       "angle": 1.9,
+       "pivot": [
+        0.68,
+        1
+       ],
+       "phase": 0.5
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "vignette",
+      "z": 13,
+      "file": "img/layers/day_land_vignette.webp",
+      "x": 0,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "parallax": [
+       0,
+       0
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": true
+     }
+    ]
+   },
+   "portrait": {
+    "canvas": [
+     1242,
+     2208
+    ],
+    "view": [
+     1080,
+     1920
+    ],
+    "offset": [
+     81,
+     144
+    ],
+    "horizon": 768,
+    "sun": [
+     335,
+     518
+    ],
+    "layers": [
+     {
+      "name": "sky",
+      "z": 0,
+      "file": "img/layers/day_port_sky.webp",
+      "x": 0,
+      "y": 0,
+      "w": 1242,
+      "h": 2208,
+      "parallax": [
+       0.02,
+       0.01
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "sun",
+      "z": 2,
+      "file": "img/layers/day_port_sun.webp",
+      "x": 0,
+      "y": 0,
+      "w": 1221,
+      "h": 1447,
+      "parallax": [
+       0.05,
+       0.03
+      ],
+      "motion": {
+       "type": "pulse",
+       "period": 6,
+       "scale": 0.045,
+       "alpha": 0.14
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "clouds_far",
+      "z": 3,
+      "file": "img/layers/day_port_clouds_far.webp",
+      "x": 9,
+      "y": 289,
+      "w": 1225,
+      "h": 538,
+      "parallax": [
+       0.09,
+       0.04
+      ],
+      "motion": {
+       "type": "drift",
+       "speedX": 3.2,
+       "wrap": true
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "mountains",
+      "z": 4,
+      "file": "img/layers/day_port_mountains.webp",
+      "x": 0,
+      "y": 571,
+      "w": 1242,
+      "h": 201,
+      "parallax": [
+       0.14,
+       0.06
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "clouds_near",
+      "z": 5,
+      "file": "img/layers/day_port_clouds_near.webp",
+      "x": 20,
+      "y": 127,
+      "w": 1213,
+      "h": 841,
+      "parallax": [
+       0.22,
+       0.09
+      ],
+      "motion": {
+       "type": "drift",
+       "speedX": 9,
+       "wrap": true
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "sea",
+      "z": 7,
+      "file": "img/layers/day_port_sea.webp",
+      "x": 0,
+      "y": 770,
+      "w": 1242,
+      "h": 1438,
+      "parallax": [
+       0.3,
+       0.13
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "sea_glitter",
+      "z": 8,
+      "file": "img/layers/day_port_sea_glitter.webp",
+      "x": 190,
+      "y": 766,
+      "w": 304,
+      "h": 1442,
+      "parallax": [
+       0.3,
+       0.13
+      ],
+      "motion": {
+       "type": "shimmer",
+       "period": 1.7,
+       "amount": 0.45,
+       "driftX": 2
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "surf",
+      "z": 9,
+      "file": "img/layers/day_port_surf.webp",
+      "x": 0,
+      "y": 1424,
+      "w": 1242,
+      "h": 282,
+      "parallax": [
+       0.46,
+       0.2
+      ],
+      "motion": {
+       "type": "surge",
+       "period": 5.2,
+       "amountY": 9,
+       "amountAlpha": 0.25
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "pebbles",
+      "z": 10,
+      "file": "img/layers/day_port_pebbles.webp",
+      "x": 0,
+      "y": 1622,
+      "w": 1242,
+      "h": 586,
+      "parallax": [
+       0.62,
+       0.28
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "palm_left",
+      "z": 11,
+      "file": "img/layers/day_port_palm_left.webp",
+      "x": 0,
+      "y": 1489,
+      "w": 542,
+      "h": 719,
+      "parallax": [
+       0.8,
+       0.34
+      ],
+      "motion": {
+       "type": "sway",
+       "period": 7.4,
+       "angle": 1.5,
+       "pivot": [
+        0.32,
+        1
+       ]
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "palm_right",
+      "z": 12,
+      "file": "img/layers/day_port_palm_right.webp",
+      "x": 682,
+      "y": 889,
+      "w": 560,
+      "h": 1319,
+      "parallax": [
+       0.92,
+       0.4
+      ],
+      "motion": {
+       "type": "sway",
+       "period": 6.1,
+       "angle": 1.9,
+       "pivot": [
+        0.68,
+        1
+       ],
+       "phase": 0.5
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "vignette",
+      "z": 13,
+      "file": "img/layers/day_port_vignette.webp",
+      "x": 0,
+      "y": 0,
+      "w": 1080,
+      "h": 1920,
+      "parallax": [
+       0,
+       0
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": true
+     }
+    ]
+   }
+  },
+  "night": {
+   "landscape": {
+    "canvas": [
+     2208,
+     1242
+    ],
+    "view": [
+     1920,
+     1080
+    ],
+    "offset": [
+     144,
+     81
+    ],
+    "horizon": 529,
+    "sun": [
+     538,
+     389
+    ],
+    "layers": [
+     {
+      "name": "sky",
+      "z": 0,
+      "file": "img/layers/night_land_sky.webp",
+      "x": 0,
+      "y": 0,
+      "w": 2208,
+      "h": 1242,
+      "parallax": [
+       0.02,
+       0.01
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "stars",
+      "z": 1,
+      "file": "img/layers/night_land_stars.webp",
+      "x": 3,
+      "y": 0,
+      "w": 2205,
+      "h": 734,
+      "parallax": [
+       0.03,
+       0.02
+      ],
+      "motion": {
+       "type": "twinkle",
+       "period": 4.5,
+       "amount": 0.35
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "moon",
+      "z": 2,
+      "file": "img/layers/night_land_moon.webp",
+      "x": 325,
+      "y": 176,
+      "w": 427,
+      "h": 427,
+      "parallax": [
+       0.05,
+       0.03
+      ],
+      "motion": {
+       "type": "pulse",
+       "period": 9,
+       "scale": 0.02,
+       "alpha": 0.08
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "clouds_far",
+      "z": 3,
+      "file": "img/layers/night_land_clouds_far.webp",
+      "x": 24,
+      "y": 273,
+      "w": 2066,
+      "h": 290,
+      "parallax": [
+       0.09,
+       0.04
+      ],
+      "motion": {
+       "type": "drift",
+       "speedX": 3.2,
+       "wrap": true
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "mountains",
+      "z": 4,
+      "file": "img/layers/night_land_mountains.webp",
+      "x": 0,
+      "y": 418,
+      "w": 2208,
+      "h": 116,
+      "parallax": [
+       0.14,
+       0.06
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "clouds_near",
+      "z": 5,
+      "file": "img/layers/night_land_clouds_near.webp",
+      "x": 40,
+      "y": 75,
+      "w": 2144,
+      "h": 465,
+      "parallax": [
+       0.22,
+       0.09
+      ],
+      "motion": {
+       "type": "drift",
+       "speedX": 9,
+       "wrap": true
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "lights",
+      "z": 6,
+      "file": "img/layers/night_land_lights.webp",
+      "x": 0,
+      "y": 506,
+      "w": 2201,
+      "h": 63,
+      "parallax": [
+       0.16,
+       0.07
+      ],
+      "motion": {
+       "type": "flicker",
+       "period": 3.1,
+       "amount": 0.22
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "sea",
+      "z": 7,
+      "file": "img/layers/night_land_sea.webp",
+      "x": 0,
+      "y": 529,
+      "w": 2208,
+      "h": 713,
+      "parallax": [
+       0.3,
+       0.13
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "sea_glitter",
+      "z": 8,
+      "file": "img/layers/night_land_sea_glitter.webp",
+      "x": 128,
+      "y": 527,
+      "w": 827,
+      "h": 715,
+      "parallax": [
+       0.3,
+       0.13
+      ],
+      "motion": {
+       "type": "shimmer",
+       "period": 1.7,
+       "amount": 0.45,
+       "driftX": 2
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "surf",
+      "z": 9,
+      "file": "img/layers/night_land_surf.webp",
+      "x": 0,
+      "y": 811,
+      "w": 2208,
+      "h": 160,
+      "parallax": [
+       0.46,
+       0.2
+      ],
+      "motion": {
+       "type": "surge",
+       "period": 5.2,
+       "amountY": 9,
+       "amountAlpha": 0.25
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "pebbles",
+      "z": 10,
+      "file": "img/layers/night_land_pebbles.webp",
+      "x": 0,
+      "y": 922,
+      "w": 2208,
+      "h": 320,
+      "parallax": [
+       0.62,
+       0.28
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "palm_left",
+      "z": 11,
+      "file": "img/layers/night_land_palm_left.webp",
+      "x": 0,
+      "y": 468,
+      "w": 759,
+      "h": 774,
+      "parallax": [
+       0.8,
+       0.34
+      ],
+      "motion": {
+       "type": "sway",
+       "period": 7.4,
+       "angle": 1.5,
+       "pivot": [
+        0.32,
+        1
+       ]
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "palm_right",
+      "z": 12,
+      "file": "img/layers/night_land_palm_right.webp",
+      "x": 1553,
+      "y": 0,
+      "w": 655,
+      "h": 1242,
+      "parallax": [
+       0.92,
+       0.4
+      ],
+      "motion": {
+       "type": "sway",
+       "period": 6.1,
+       "angle": 1.9,
+       "pivot": [
+        0.68,
+        1
+       ],
+       "phase": 0.5
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "vignette",
+      "z": 13,
+      "file": "img/layers/night_land_vignette.webp",
+      "x": 0,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "parallax": [
+       0,
+       0
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": true
+     }
+    ]
+   },
+   "portrait": {
+    "canvas": [
+     1242,
+     2208
+    ],
+    "view": [
+     1080,
+     1920
+    ],
+    "offset": [
+     81,
+     144
+    ],
+    "horizon": 768,
+    "sun": [
+     335,
+     518
+    ],
+    "layers": [
+     {
+      "name": "sky",
+      "z": 0,
+      "file": "img/layers/night_port_sky.webp",
+      "x": 0,
+      "y": 0,
+      "w": 1242,
+      "h": 2208,
+      "parallax": [
+       0.02,
+       0.01
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "stars",
+      "z": 1,
+      "file": "img/layers/night_port_stars.webp",
+      "x": 0,
+      "y": 0,
+      "w": 1242,
+      "h": 1302,
+      "parallax": [
+       0.03,
+       0.02
+      ],
+      "motion": {
+       "type": "twinkle",
+       "period": 4.5,
+       "amount": 0.35
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "moon",
+      "z": 2,
+      "file": "img/layers/night_port_moon.webp",
+      "x": 87,
+      "y": 270,
+      "w": 497,
+      "h": 497,
+      "parallax": [
+       0.05,
+       0.03
+      ],
+      "motion": {
+       "type": "pulse",
+       "period": 9,
+       "scale": 0.02,
+       "alpha": 0.08
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "clouds_far",
+      "z": 3,
+      "file": "img/layers/night_port_clouds_far.webp",
+      "x": 10,
+      "y": 342,
+      "w": 1218,
+      "h": 486,
+      "parallax": [
+       0.09,
+       0.04
+      ],
+      "motion": {
+       "type": "drift",
+       "speedX": 3.2,
+       "wrap": true
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "mountains",
+      "z": 4,
+      "file": "img/layers/night_port_mountains.webp",
+      "x": 0,
+      "y": 571,
+      "w": 1242,
+      "h": 201,
+      "parallax": [
+       0.14,
+       0.06
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "clouds_near",
+      "z": 5,
+      "file": "img/layers/night_port_clouds_near.webp",
+      "x": 22,
+      "y": 136,
+      "w": 1207,
+      "h": 823,
+      "parallax": [
+       0.22,
+       0.09
+      ],
+      "motion": {
+       "type": "drift",
+       "speedX": 9,
+       "wrap": true
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "lights",
+      "z": 6,
+      "file": "img/layers/night_port_lights.webp",
+      "x": 0,
+      "y": 747,
+      "w": 1220,
+      "h": 59,
+      "parallax": [
+       0.16,
+       0.07
+      ],
+      "motion": {
+       "type": "flicker",
+       "period": 3.1,
+       "amount": 0.22
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "sea",
+      "z": 7,
+      "file": "img/layers/night_port_sea.webp",
+      "x": 0,
+      "y": 770,
+      "w": 1242,
+      "h": 1438,
+      "parallax": [
+       0.3,
+       0.13
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "sea_glitter",
+      "z": 8,
+      "file": "img/layers/night_port_sea_glitter.webp",
+      "x": 190,
+      "y": 766,
+      "w": 292,
+      "h": 1439,
+      "parallax": [
+       0.3,
+       0.13
+      ],
+      "motion": {
+       "type": "shimmer",
+       "period": 1.7,
+       "amount": 0.45,
+       "driftX": 2
+      },
+      "blend": "add",
+      "fixed": false
+     },
+     {
+      "name": "surf",
+      "z": 9,
+      "file": "img/layers/night_port_surf.webp",
+      "x": 0,
+      "y": 1425,
+      "w": 1242,
+      "h": 277,
+      "parallax": [
+       0.46,
+       0.2
+      ],
+      "motion": {
+       "type": "surge",
+       "period": 5.2,
+       "amountY": 9,
+       "amountAlpha": 0.25
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "pebbles",
+      "z": 10,
+      "file": "img/layers/night_port_pebbles.webp",
+      "x": 0,
+      "y": 1622,
+      "w": 1242,
+      "h": 586,
+      "parallax": [
+       0.62,
+       0.28
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "palm_left",
+      "z": 11,
+      "file": "img/layers/night_port_palm_left.webp",
+      "x": 0,
+      "y": 1489,
+      "w": 542,
+      "h": 719,
+      "parallax": [
+       0.8,
+       0.34
+      ],
+      "motion": {
+       "type": "sway",
+       "period": 7.4,
+       "angle": 1.5,
+       "pivot": [
+        0.32,
+        1
+       ]
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "palm_right",
+      "z": 12,
+      "file": "img/layers/night_port_palm_right.webp",
+      "x": 682,
+      "y": 889,
+      "w": 560,
+      "h": 1319,
+      "parallax": [
+       0.92,
+       0.4
+      ],
+      "motion": {
+       "type": "sway",
+       "period": 6.1,
+       "angle": 1.9,
+       "pivot": [
+        0.68,
+        1
+       ],
+       "phase": 0.5
+      },
+      "blend": "normal",
+      "fixed": false
+     },
+     {
+      "name": "vignette",
+      "z": 13,
+      "file": "img/layers/night_port_vignette.webp",
+      "x": 0,
+      "y": 0,
+      "w": 1080,
+      "h": 1920,
+      "parallax": [
+       0,
+       0
+      ],
+      "motion": {
+       "type": "static"
+      },
+      "blend": "normal",
+      "fixed": true
+     }
+    ]
+   }
+  }
+ }
+}

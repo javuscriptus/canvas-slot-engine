@@ -59,48 +59,115 @@ async function open(viewport) {
   return { page, errors };
 }
 
+/** Крутит барабаны. Точка входа могла переехать — ищем её по вариантам. */
+function spin(page) {
+  return page.evaluate(() => {
+    const g = window.__game;
+    const fn = g?.requestSpin || g?.spin || g?.machine?.requestSpin || g?.machine?.spin;
+    if (typeof fn === "function") return fn.call(fn === g?.machine?.requestSpin || fn === g?.machine?.spin ? g.machine : g);
+    throw new Error("не найдена точка входа спина на window.__game");
+  });
+}
+
+/** Ждёт одного из состояний автомата, где бы оно ни жило. */
+async function waitState(page, want, timeout = 30000) {
+  await page
+    .waitForFunction(
+      (states) => {
+        const g = window.__game;
+        const s = g?.state ?? g?.machine?.state;
+        return states.includes(s);
+      },
+      Array.isArray(want) ? want : [want],
+      { timeout }
+    )
+    .catch(() => {});
+}
+
 /* ─────────────────────────── ландшафт ─────────────────────────── */
 
 const land = await open(LANDSCAPE);
 await shot(land.page, "01-idle-landscape");
 
 // Спин: кадр в середине вращения — видно смаз и физику барабанов.
-await land.page.evaluate(() => window.__game.requestSpin());
+await spin(land.page);
 await land.page.waitForTimeout(420);
 await shot(land.page, "02-spinning");
 
 // Ждём окончания презентации выигрыша и снимаем итог.
-await land.page.waitForFunction(() => window.__game.state === "idle", { timeout: 30000 }).catch(() => {});
+await waitState(land.page, "idle");
 await land.page.waitForTimeout(600);
 await shot(land.page, "03-after-spin");
 
 // Крутим, пока не поймаем выигрыш: подсветка линий — ключевой кадр.
 for (let i = 0; i < 40; i++) {
-  await land.page.evaluate(() => window.__game.requestSpin());
-  await land.page.waitForFunction(() => window.__game.state === "presenting" || window.__game.state === "idle", { timeout: 30000 }).catch(() => {});
-  const win = await land.page.evaluate(() => window.__game.lastWin);
+  await spin(land.page);
+  await waitState(land.page, ["presenting", "idle"]);
+  const win = await land.page.evaluate(() => window.__game?.lastWin ?? 0);
   if (win > 0) {
     await land.page.waitForTimeout(500);
     await shot(land.page, "04-win");
     break;
   }
-  await land.page.waitForFunction(() => window.__game.state === "idle", { timeout: 30000 }).catch(() => {});
+  await waitState(land.page, "idle");
 }
 
-await land.page.evaluate(() => window.__game.paytable.show());
-await land.page.waitForTimeout(600);
-await shot(land.page, "05-paytable");
-await land.page.evaluate(() => window.__game.paytable.hide());
+// Модалки ищутся по нескольким возможным путям: структура клиента
+// переезжает, а стенд обязан переживать переименования — иначе он падает
+// на рефакторинге ровно тогда, когда кадры нужнее всего.
+async function openModal(page, names) {
+  return page.evaluate((keys) => {
+    const g = window.__game;
+    const roots = [g, g?.ui, g?.modals, g?.overlays, g?.scene];
+    for (const root of roots) {
+      if (!root) continue;
+      for (const key of keys) {
+        const m = root[key];
+        if (m && typeof m.show === "function") {
+          m.show();
+          return key;
+        }
+      }
+    }
+    return null;
+  }, names);
+}
 
-await land.page.evaluate(() => window.__game.autoplayModal.show());
-await land.page.waitForTimeout(500);
-await shot(land.page, "06-autoplay");
+async function closeModal(page, names) {
+  await page.evaluate((keys) => {
+    const g = window.__game;
+    const roots = [g, g?.ui, g?.modals, g?.overlays, g?.scene];
+    for (const root of roots) {
+      if (!root) continue;
+      for (const key of keys) {
+        const m = root[key];
+        if (m && typeof m.hide === "function") m.hide();
+      }
+    }
+  }, names);
+}
+
+const PAYTABLE = ["paytable", "paytableModal", "infoModal"];
+const AUTOPLAY = ["autoplayModal", "autoplay", "autoModal"];
+
+if (await openModal(land.page, PAYTABLE)) {
+  await land.page.waitForTimeout(600);
+  await shot(land.page, "05-paytable");
+  await closeModal(land.page, PAYTABLE);
+  await land.page.waitForTimeout(300);
+}
+
+if (await openModal(land.page, AUTOPLAY)) {
+  await land.page.waitForTimeout(500);
+  await shot(land.page, "06-autoplay");
+  await closeModal(land.page, AUTOPLAY);
+}
 
 /* ──────────────────────────── портрет ─────────────────────────── */
 
 const port = await open(PORTRAIT);
 await shot(port.page, "07-idle-portrait");
-await port.page.evaluate(() => window.__game.requestSpin());
+await spin(port.page);
 await port.page.waitForTimeout(420);
 await shot(port.page, "08-portrait-spinning");
 

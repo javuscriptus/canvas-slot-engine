@@ -7,6 +7,11 @@
 //                    списание ставки и зачисление выигрыша.
 //
 // Контракт одинаков, поэтому переключение — вопрос одной переменной окружения.
+//
+// Общее для обеих реализаций правило: КАЖДОЕ движение денег оставляет строку
+// в transactions. Раньше журнал вёл только локальный кошелёк, а бесшовный —
+// ни одной строки. В бою это означало отсутствие аудита денег: после падения
+// процесса нечем ни свериться с оператором, ни понять, что откатывать.
 
 "use strict";
 
@@ -33,52 +38,66 @@ class LocalWallet {
     return p.balance_minor;
   }
 
+  /**
+   * Ставка. Изменение баланса и запись в журнал идут одной транзакцией:
+   * порознь они дают состояние «деньги списаны, следа нет», которое
+   * не воспроизводится и не разбирается.
+   */
   async bet({ player, roundId, amountMinor }) {
-    const existing = this.db.q.txByRoundType.get(roundId, "bet");
-    if (existing) {
-      return { balanceMinor: existing.balance_after, txId: existing.id, replayed: true };
-    }
+    return this.db.transaction(() => {
+      const { tx, fresh } = this.db.beginTx({
+        roundId, playerId: player.id, type: "bet", amountMinor: -amountMinor
+      });
+      if (!fresh) {
+        return { balanceMinor: tx.balance_after, txId: tx.id, replayed: true };
+      }
 
-    const balance = this.db.adjustBalance(player.id, -amountMinor);
-    if (balance === null) {
-      throw new WalletError("INSUFFICIENT_FUNDS", "Недостаточно средств");
-    }
-    const tx = this.db.recordTx({
-      roundId, playerId: player.id, type: "bet",
-      amountMinor: -amountMinor, balanceAfter: balance
+      const balance = this.db.adjustBalance(player.id, -amountMinor);
+      if (balance === null) {
+        // Откат транзакции уберёт и открытую строку журнала — так и надо:
+        // денег не двигали, записывать нечего. След отказа остаётся
+        // в раунде, он помечается aborted.
+        throw new WalletError("INSUFFICIENT_FUNDS", "Недостаточно средств");
+      }
+      this.db.settleTx(tx.id, { amountMinor: -amountMinor, balanceAfter: balance });
+      return { balanceMinor: balance, txId: tx.id };
     });
-    return { balanceMinor: balance, txId: tx.id };
   }
 
   async win({ player, roundId, amountMinor }) {
-    const existing = this.db.q.txByRoundType.get(roundId, "win");
-    if (existing) {
-      return { balanceMinor: existing.balance_after, txId: existing.id, replayed: true };
-    }
+    return this.db.transaction(() => {
+      const { tx, fresh } = this.db.beginTx({
+        roundId, playerId: player.id, type: "win", amountMinor
+      });
+      if (!fresh) {
+        return { balanceMinor: tx.balance_after, txId: tx.id, replayed: true };
+      }
 
-    const balance = amountMinor > 0
-      ? this.db.adjustBalance(player.id, amountMinor)
-      : this.db.getPlayer(player.id).balance_minor;
+      const balance = amountMinor > 0
+        ? this.db.adjustBalance(player.id, amountMinor)
+        : this.db.getPlayer(player.id).balance_minor;
 
-    const tx = this.db.recordTx({
-      roundId, playerId: player.id, type: "win",
-      amountMinor, balanceAfter: balance
+      this.db.settleTx(tx.id, { amountMinor, balanceAfter: balance });
+      return { balanceMinor: balance, txId: tx.id };
     });
-    return { balanceMinor: balance, txId: tx.id };
   }
 
   async rollback({ player, roundId }) {
     const bet = this.db.q.txByRoundType.get(roundId, "bet");
-    if (!bet) return { balanceMinor: await this.getBalance(player) };
-    const already = this.db.q.txByRoundType.get(roundId, "rollback");
-    if (already) return { balanceMinor: already.balance_after };
+    if (!bet || bet.status === "failed") {
+      return { balanceMinor: await this.getBalance(player) };
+    }
 
-    const balance = this.db.adjustBalance(player.id, -bet.amount_minor);
-    this.db.recordTx({
-      roundId, playerId: player.id, type: "rollback",
-      amountMinor: -bet.amount_minor, balanceAfter: balance
+    return this.db.transaction(() => {
+      const { tx, fresh } = this.db.beginTx({
+        roundId, playerId: player.id, type: "rollback", amountMinor: -bet.amount_minor
+      });
+      if (!fresh) return { balanceMinor: tx.balance_after };
+
+      const balance = this.db.adjustBalance(player.id, -bet.amount_minor);
+      this.db.settleTx(tx.id, { amountMinor: -bet.amount_minor, balanceAfter: balance });
+      return { balanceMinor: balance };
     });
-    return { balanceMinor: balance };
   }
 }
 
@@ -96,14 +115,18 @@ class LocalWallet {
  *   POST {baseUrl}/rollback  { playerId, roundId }               → { balance }
  */
 class SeamlessWallet {
-  constructor({ baseUrl, secret, operatorId, gameId, timeoutMs = 8000, retries = 2 }) {
+  constructor({ baseUrl, secret, operatorId, gameId, db, timeoutMs = 8000, retries = 2 }) {
     if (!baseUrl || !secret) {
       throw new Error("SeamlessWallet: нужны WALLET_URL и WALLET_SECRET");
+    }
+    if (!db) {
+      throw new Error("SeamlessWallet: нужен доступ к БД для журнала транзакций");
     }
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.secret = secret;
     this.operatorId = operatorId;
     this.gameId = gameId;
+    this.db = db;
     this.timeoutMs = timeoutMs;
     this.retries = retries;
     this.kind = "seamless";
@@ -169,37 +192,71 @@ class SeamlessWallet {
     throw new WalletError("WALLET_UNAVAILABLE", `Кошелёк недоступен: ${lastError?.message}`, { retriable: true });
   }
 
+  /**
+   * Денежный вызов к оператору с записью в журнал.
+   *
+   * Строка открывается ДО запроса и закрывается по его результату.
+   * Строка в статусе pending — это и есть «мы не знаем, прошли деньги
+   * или нет»: именно её ищет сверка после падения процесса.
+   */
+  async _money({ player, roundId, type, amountMinor, endpoint, payload }) {
+    const { tx, fresh } = this.db.beginTx({
+      roundId, playerId: player.id, type, amountMinor
+    });
+    if (!fresh && tx.status === "ok") {
+      return { balanceMinor: tx.balance_after, txId: tx.id, externalRef: tx.external_ref, replayed: true };
+    }
+
+    let data;
+    try {
+      // Ключ идемпотентности у оператора — тот же roundId:type. Повтор
+      // после обрыва не создаёт у него вторую операцию.
+      data = await this._call(endpoint, payload, { idempotencyKey: `${roundId}:${type}` });
+    } catch (err) {
+      // Недостаток средств — отказ, а не авария: строку закрываем как
+      // failed, иначе сверка будет вечно искать несуществующие деньги.
+      // Сетевой сбой оставляем pending: деньги могли и уйти.
+      if (err.code === "INSUFFICIENT_FUNDS" || !err.retriable) {
+        this.db.failTx(tx.id, err.code);
+      }
+      throw err;
+    }
+
+    const balanceMinor = Math.round(data.balance);
+    this.db.settleTx(tx.id, {
+      amountMinor, balanceAfter: balanceMinor, externalRef: data.transactionId || null
+    });
+    return { balanceMinor, txId: tx.id, externalRef: data.transactionId || null };
+  }
+
   async getBalance(player) {
     const r = await this._call("balance", { playerId: player.external_id });
     return Math.round(r.balance);
   }
 
   async bet({ player, roundId, amountMinor, currency }) {
-    const r = await this._call("bet", {
-      playerId: player.external_id,
-      roundId,
-      amount: amountMinor,
-      currency
-    }, { idempotencyKey: `${roundId}:bet` });
-    return { balanceMinor: Math.round(r.balance), txId: r.transactionId };
+    return this._money({
+      player, roundId, type: "bet", amountMinor: -amountMinor, endpoint: "bet",
+      payload: { playerId: player.external_id, roundId, amount: amountMinor, currency }
+    });
   }
 
   async win({ player, roundId, amountMinor, currency }) {
-    const r = await this._call("win", {
-      playerId: player.external_id,
-      roundId,
-      amount: amountMinor,
-      currency
-    }, { idempotencyKey: `${roundId}:win` });
-    return { balanceMinor: Math.round(r.balance), txId: r.transactionId };
+    return this._money({
+      player, roundId, type: "win", amountMinor, endpoint: "win",
+      payload: { playerId: player.external_id, roundId, amount: amountMinor, currency }
+    });
   }
 
-  async rollback({ player, roundId }) {
-    const r = await this._call("rollback", {
-      playerId: player.external_id,
-      roundId
-    }, { idempotencyKey: `${roundId}:rollback` });
-    return { balanceMinor: Math.round(r.balance) };
+  async rollback({ player, roundId, currency }) {
+    const bet = this.db.q.txByRoundType.get(roundId, "bet");
+    if (!bet || bet.status === "failed") {
+      return { balanceMinor: await this.getBalance(player) };
+    }
+    return this._money({
+      player, roundId, type: "rollback", amountMinor: -bet.amount_minor, endpoint: "rollback",
+      payload: { playerId: player.external_id, roundId, currency }
+    });
   }
 }
 
@@ -209,7 +266,8 @@ function createWallet(config, db) {
       baseUrl: config.wallet.url,
       secret: config.wallet.secret,
       operatorId: config.wallet.operatorId,
-      gameId: config.gameId
+      gameId: config.gameId,
+      db
     });
   }
   return new LocalWallet(db);

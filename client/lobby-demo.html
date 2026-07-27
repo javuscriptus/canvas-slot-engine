@@ -4,54 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Демо-лобби · Сочи · Sochi Sunset</title>
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    height: 100vh; display: grid; grid-template-columns: 1fr 380px;
-    background: #0B0E17; color: #E6EAF2;
-    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
-  }
-  .stage { display: flex; flex-direction: column; min-width: 0; }
-  .bar {
-    display: flex; align-items: center; gap: 18px; padding: 10px 18px;
-    background: #121826; border-bottom: 1px solid #232C42;
-  }
-  .bar strong { color: #7FD1FF; letter-spacing: .04em; }
-  .money { margin-left: auto; display: flex; gap: 22px; }
-  .money span { color: #8A94A8; font-size: 12px; text-transform: uppercase; }
-  .money b { display: block; font-size: 18px; color: #FFD86A; }
-  iframe { flex: 1; width: 100%; border: 0; background: #07020F; }
-
-  aside { display: flex; flex-direction: column; background: #101623; border-left: 1px solid #232C42; min-height: 0; }
-  aside h2 { padding: 12px 16px; font-size: 13px; letter-spacing: .1em;
-    text-transform: uppercase; color: #8A94A8; border-bottom: 1px solid #232C42; }
-  .cmds { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 16px;
-    border-bottom: 1px solid #232C42; }
-  button {
-    padding: 9px 10px; border: 1px solid #2E3A55; border-radius: 7px;
-    background: #1A2233; color: #D6DEEC; font: 500 13px/1 inherit; cursor: pointer;
-  }
-  button:hover { background: #223049; border-color: #3D4C6E; }
-  button.warn { border-color: #6B3030; color: #FFB4B4; }
-  #log { flex: 1; overflow: auto; padding: 8px 12px; font: 12px/1.45 ui-monospace, monospace; }
-  .row { padding: 5px 7px; border-radius: 6px; margin-bottom: 3px; background: #151D2E; }
-  .row.in { border-left: 3px solid #4FD48A; }
-  .row.out { border-left: 3px solid #7FA8FF; }
-  .row.sock { border-left: 3px solid #FFB84F; }
-  .row .k { color: #9FE7C0; }
-  .row.out .k { color: #A8C4FF; }
-  .row.sock .k { color: #FFD08A; }
-  .row .t { color: #5C6780; margin-right: 6px; }
-  .row pre { color: #96A0B5; white-space: pre-wrap; word-break: break-all; margin-top: 2px; }
-  .hint { padding: 10px 16px; font-size: 12px; color: #6F7B92; border-top: 1px solid #232C42; }
-</style>
+<link rel="stylesheet" href="lobby-demo.css">
 </head>
 <body>
   <div class="stage">
     <div class="bar">
       <strong>ДЕМО-ЛОББИ ОПЕРАТОРА</strong>
-      <span style="color:#5C6780">игра загружена в iframe</span>
+      <span class="muted">игра загружена в iframe</span>
       <div class="money">
         <div><span>Баланс лобби</span><b id="bal">—</b></div>
         <div><span>Раунд</span><b id="round">нет</b></div>
@@ -78,55 +37,6 @@
     </div>
   </aside>
 
-<script>
-  const PROTOCOL = "rgs-game";
-  const frame = document.getElementById("game");
-  const log = document.getElementById("log");
-  const bal = document.getElementById("bal");
-  const roundEl = document.getElementById("round");
-
-  const fmt = (n) => Number(n).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const time = () => new Date().toLocaleTimeString("ru-RU", { hour12: false });
-
-  function add(kind, key, data) {
-    const row = document.createElement("div");
-    row.className = "row " + kind;
-    row.innerHTML = `<span class="t">${time()}</span><span class="k">${key}</span>` +
-      (data && Object.keys(data).length ? `<pre>${JSON.stringify(data)}</pre>` : "");
-    log.prepend(row);
-    while (log.children.length > 120) log.lastChild.remove();
-  }
-
-  // Игра → лобби. В бою здесь обязательна проверка event.origin
-  // по домену, с которого отдаётся игра.
-  window.addEventListener("message", (e) => {
-    const m = e.data;
-    if (!m || m.protocol !== PROTOCOL || !m.event) return;
-    add("in", m.event, m.payload);
-
-    const p = m.payload || {};
-    if (p.balance !== undefined) bal.textContent = fmt(p.balance);
-
-    if (m.event === "round.start") roundEl.textContent = "идёт";
-    if (m.event === "round.end") {
-      roundEl.textContent = p.win > 0 ? `выигрыш ${fmt(p.win)}` : "без выигрыша";
-    }
-    if (m.event === "lobby.cashier") {
-      roundEl.textContent = "нужен депозит";
-      // Настоящее лобби здесь открыло бы кассу.
-    }
-  });
-
-  // Лобби → игре
-  for (const btn of document.querySelectorAll("[data-cmd]")) {
-    btn.addEventListener("click", () => {
-      const command = btn.dataset.cmd;
-      const payload = command === "reality-check"
-        ? { message: "Вы играете уже 30 минут" } : {};
-      frame.contentWindow.postMessage({ protocol: PROTOCOL, command, payload }, "*");
-      add("out", command, payload);
-    });
-  }
-</script>
+<script src="lobby-demo.js"></script>
 </body>
 </html>

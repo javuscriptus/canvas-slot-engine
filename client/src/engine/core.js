@@ -157,19 +157,8 @@ export const Easing = {
 
 /* ──────────────────────────── утилиты ───────────────────────────── */
 
-/** Промис-пауза, привязанная к тикеру (уважает паузу игры). */
-export function wait(ticker, seconds) {
-  return new Promise((resolve) => {
-    let left = seconds;
-    const off = ticker.onTick.add((dt) => {
-      left -= dt;
-      if (left <= 0) {
-        off();
-        resolve();
-      }
-    });
-  });
-}
+// Промис-пауза живёт в timeline.js: она обязана считать время игры,
+// а не время тикера, иначе не останавливается на паузе от лобби.
 
 /** Форматирование денег: 1234.5 → "1 234.50" */
 export function formatMoney(value, { decimals = 2, thousands = " " } = {}) {

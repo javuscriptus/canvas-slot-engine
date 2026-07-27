@@ -19,7 +19,9 @@
     "math:optimize": "node server/src/math/optimize.js",
     "math:simulate": "node server/src/tools/simulate.js --spins 10000000",
 
-    "test": "node --test \"server/test/**/*.test.js\"",
+    "test": "node --test \"server/test/**/*.test.js\" \"client/test/**/*.test.js\"",
+    "test:server": "node --test \"server/test/**/*.test.js\"",
+    "test:client": "node --test \"client/test/**/*.test.js\"",
     "smoke": "node tools/preview/smoke.mjs"
   },
   "dependencies": {},

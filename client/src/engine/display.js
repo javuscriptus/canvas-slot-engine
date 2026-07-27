@@ -1,7 +1,11 @@
 // Граф сцены. Узлы хранят локальное преобразование, рендер обходит дерево
 // и складывает матрицы. Аллокаций в кадре нет: матрицы переиспользуются.
+//
+// Узел не умеет себя рисовать и ничего не знает про Canvas2D: он объявляет
+// свой nodeType, а отрисовщик под этот тип регистрирует бэкенд. Поэтому
+// здесь нет ни одного обращения к ctx.
 
-import { Signal } from "./core.js";
+import { NodeType } from "./render/drawables.js";
 
 let UID = 0;
 
@@ -89,6 +93,7 @@ export class Matrix {
 export class Node {
   constructor() {
     this.id = ++UID;
+    this.nodeType = null;       // ключ отрисовщика в реестре drawables
     this.x = 0;
     this.y = 0;
     this.scaleX = 1;
@@ -104,12 +109,16 @@ export class Node {
     this.blendMode = null;      // 'lighter', 'multiply', …
     this.interactive = false;
     this.parent = null;
+    this.zIndex = 0;            // порядок внутри контейнера с sortableChildren
+
+    // Узлы с точной геометрией отбрасываются рендером до вызова отрисовщика.
+    // Узлы, которые рисуют произвольно (Custom, частицы), по умолчанию НЕ
+    // отсекаются: отсечь по объявленному размеру то, что рисует шире него, —
+    // значит получить пропадающую графику вместо экономии.
+    this.cullable = false;
 
     this.worldMatrix = new Matrix();
     this.worldAlpha = 1;
-
-    // Заполняется рендером; используется отсечением и попаданием указателя.
-    this._bounds = { x: 0, y: 0, w: 0, h: 0 };
   }
 
   set scale(v) {
@@ -146,6 +155,14 @@ export class Node {
     return { width: 0, height: 0 };
   }
 
+  /**
+   * Прямоугольник для отсечения по видимости, в ЛОКАЛЬНЫХ координатах.
+   * null означает «границы неизвестны» — такой узел рисуется всегда.
+   */
+  getCullRect() {
+    return null;
+  }
+
   containsPoint(globalX, globalY) {
     const p = this.worldMatrix.applyInverse(globalX, globalY, TMP_POINT);
     const { width, height } = this.getLocalSize();
@@ -164,11 +181,16 @@ const TMP_POINT = { x: 0, y: 0 };
 export class Container extends Node {
   constructor() {
     super();
+    this.nodeType = NodeType.CONTAINER;
+    this.isContainer = true;
+    // Контейнер отсекается только по маске; без неё getCullRect вернёт null,
+    // и поддерево обойдётся целиком.
+    this.cullable = true;
     this.children = [];
     this.sortableChildren = false;
-    this.zIndex = 0;
     // Маска отсечения в локальных координатах — используется барабанами.
     this.clip = null;   // {x, y, width, height}
+    this._sortDirty = false;
   }
 
   add(...nodes) {
@@ -177,6 +199,7 @@ export class Container extends Node {
       n.parent = this;
       this.children.push(n);
     }
+    this._sortDirty = true;
     return nodes[0];
   }
 
@@ -184,6 +207,7 @@ export class Container extends Node {
     if (node.parent) node.parent.remove(node);
     node.parent = this;
     this.children.splice(index, 0, node);
+    this._sortDirty = true;
     return node;
   }
 
@@ -201,9 +225,47 @@ export class Container extends Node {
     this.children.length = 0;
   }
 
+  /**
+   * Пересортировка по zIndex.
+   *
+   * Вызывается рендером и только когда состав детей менялся: сортировка
+   * полутора десятков узлов каждый кадр — это и сравнения, и аллокация
+   * внутри Array#sort. Если zIndex поменяли на лету, порядок обновится
+   * после setZIndex(), а не «когда-нибудь».
+   */
+  sortChildren() {
+    if (!this._sortDirty) return;
+    this._sortDirty = false;
+    // Индекс добавления держит стабильность: узлы с равным zIndex
+    // обязаны сохранить порядок, в котором их положили.
+    const order = this.children;
+    const keyed = order.map((n, i) => ({ n, i }));
+    keyed.sort((a, b) => (a.n.zIndex - b.n.zIndex) || (a.i - b.i));
+    for (let i = 0; i < keyed.length; i++) order[i] = keyed[i].n;
+  }
+
+  setZIndex(node, z) {
+    node.zIndex = z;
+    this._sortDirty = true;
+    return node;
+  }
+
   getLocalSize() {
     if (this.clip) return { width: this.clip.width, height: this.clip.height };
     return { width: 0, height: 0 };
+  }
+
+  /**
+   * Контейнер отсекается только по маске: без неё его размер задают дети,
+   * и посчитать его дешевле обходом, чем объединением габаритов поддерева.
+   */
+  getCullRect(out) {
+    if (!this.clip) return null;
+    out.x = this.clip.x;
+    out.y = this.clip.y;
+    out.w = this.clip.width;
+    out.h = this.clip.height;
+    return out;
   }
 }
 
@@ -216,6 +278,8 @@ export class Container extends Node {
 export class Sprite extends Node {
   constructor(frame = null, scaleFactor = 1) {
     super();
+    this.nodeType = NodeType.SPRITE;
+    this.cullable = true;
     this.frame = frame;
     this.scaleFactor = scaleFactor;
     this.anchorX = 0;
@@ -249,6 +313,14 @@ export class Sprite extends Node {
     return { width: this.width, height: this.height };
   }
 
+  getCullRect(out) {
+    out.x = -this.anchorX * this.width;
+    out.y = -this.anchorY * this.height;
+    out.w = this.width;
+    out.h = this.height;
+    return out;
+  }
+
   containsPoint(gx, gy) {
     const p = this.worldMatrix.applyInverse(gx, gy, TMP_POINT);
     const ox = -this.anchorX * this.width;
@@ -263,6 +335,8 @@ export class Sprite extends Node {
 export class NineSlice extends Node {
   constructor(frame, slice, scaleFactor = 1) {
     super();
+    this.nodeType = NodeType.NINE_SLICE;
+    this.cullable = true;
     this.frame = frame;
     this.slice = slice;              // [left, top, right, bottom] в пикселях атласа
     this.scaleFactor = scaleFactor;
@@ -279,6 +353,11 @@ export class NineSlice extends Node {
   getLocalSize() {
     return { width: this.width, height: this.height };
   }
+
+  getCullRect(out) {
+    out.x = 0; out.y = 0; out.w = this.width; out.h = this.height;
+    return out;
+  }
 }
 
 /* ─────────────────────────────── текст ──────────────────────────── */
@@ -286,15 +365,40 @@ export class NineSlice extends Node {
 /**
  * Текст рисуется в собственный offscreen-canvas и дальше выводится как
  * картинка. Перерисовка только при смене содержимого — fillText каждый кадр
- * для 15 надписей на слабом Android стоит дороже, чем весь остальной рендер.
+ * для полутора десятков надписей на слабом Android стоит дороже, чем весь
+ * остальной рендер.
+ *
+ * Ключевое здесь одно: холст только РАСТЁТ и никогда не пересоздаётся.
+ * Присваивание canvas.width переаллоцирует буфер целиком и обнуляет его,
+ * а у счётчика крупного выигрыша содержимое меняется каждый кадр.
+ *
+ * Замер в headless Chromium, буфер 3160×480, одна перерисовка:
+ *
+ *   с пересозданием холста      2.53 мс
+ *   в готовый холст             0.04 мс
+ *   в готовый холст, без тени   0.04 мс
+ *
+ * То есть все 2.5 мс на кадр стоила именно аллокация, а не гауссова тень:
+ * тень внутри кеша не измеряется вовсе, потому что она считается один раз
+ * на смену текста и по площади надписи, а не по площади экрана. Правило
+ * «никакого shadowBlur в кадре» относится к отрисовке сцены, где размытие
+ * идёт по всему холсту каждый кадр, — там оно и стоило свои 10–20 мс.
  */
 export class Text extends Node {
   constructor(text = "", style = {}) {
     super();
+    this.nodeType = NodeType.TEXT;
+    this.cullable = true;
     this._text = String(text);
+    // Умолчаний нет намеренно. Любая подстановка вида «600 32px чего-то»
+    // или «белый» — это решение об оформлении, принятое движком, и оно
+    // молча переживает смену темы: надпись просто нарисуется не тем
+    // шрифтом или не тем цветом, и никто этого не заметит до скриншота.
+    if (!style.font) throw new Error("Text без шрифта: гарнитуру и кегль задаёт тема");
+    if (!style.fill && !style.gradient) throw new Error("Text без заливки: цвет задаёт тема");
     this.style = {
-      font: "700 32px Poppins, Lora, sans-serif",
-      fill: "#ffffff",
+      font: null,
+      fill: null,
       stroke: null,
       strokeWidth: 0,
       align: "left",          // left | center | right
@@ -312,6 +416,12 @@ export class Text extends Node {
     this._ctx = null;
     this._dirty = true;
     this._dpr = 1;
+    // Выделено под буфер против фактически занятого: рисуем весь буфер,
+    // а выводим только занятую часть.
+    this._bufW = 0;
+    this._bufH = 0;
+    this._srcW = 0;
+    this._srcH = 0;
     this.width = 0;
     this.height = 0;
   }
@@ -343,7 +453,20 @@ export class Text extends Node {
     return { width: this.width, height: this.height };
   }
 
-  /** Перерисовывает подложку. Вызывается рендером при _dirty. */
+  getCullRect(out) {
+    out.x = -this.anchorX * this.width;
+    out.y = -this.anchorY * this.height;
+    out.w = this.width;
+    out.h = this.height;
+    return out;
+  }
+
+  /** Готова ли подложка к выводу. */
+  get ready() {
+    return this._srcW > 0 && this._srcH > 0;
+  }
+
+  /** Перерисовывает подложку. Вызывается отрисовщиком при _dirty. */
   redraw(dpr) {
     const s = this.style;
     if (!this._canvas) {
@@ -356,25 +479,35 @@ export class Text extends Node {
     const lines = this._text.split("\n");
     const lineHeight = s.lineHeight || this._fontSize(s.font) * 1.22;
 
-    ctx.font = s.font;
-    if ("letterSpacing" in ctx) ctx.letterSpacing = `${s.letterSpacing}px`;
-
+    this._applyFont(ctx);
     let maxW = 0;
     for (const line of lines) maxW = Math.max(maxW, ctx.measureText(line).width);
 
-    const padX = (s.strokeWidth || 0) + (s.shadow ? s.shadow.blur + Math.abs(s.shadow.x || 0) : 0) + 4;
-    const padY = (s.strokeWidth || 0) + (s.shadow ? s.shadow.blur + Math.abs(s.shadow.y || 0) : 0) + 4;
+    const blur = s.shadow ? s.shadow.blur || 0 : 0;
+    const padX = (s.strokeWidth || 0) + (s.shadow ? blur + Math.abs(s.shadow.x || 0) : 0) + 4;
+    const padY = (s.strokeWidth || 0) + (s.shadow ? blur + Math.abs(s.shadow.y || 0) : 0) + 4;
 
     const w = Math.ceil(maxW + padX * 2);
     const h = Math.ceil(lineHeight * lines.length + padY * 2);
 
-    this._canvas.width = Math.max(1, Math.ceil(w * dpr));
-    this._canvas.height = Math.max(1, Math.ceil(h * dpr));
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
+    const needW = Math.max(1, Math.ceil(w * dpr));
+    const needH = Math.max(1, Math.ceil(h * dpr));
+    this._growBuffer(needW, needH);
+    this._srcW = needW;
+    this._srcH = needH;
 
-    ctx.font = s.font;
-    if ("letterSpacing" in ctx) ctx.letterSpacing = `${s.letterSpacing}px`;
+    // Чистим в ПИКСЕЛЯХ буфера и с запасом в два пикселя.
+    //
+    // Буфер только растёт, поэтому за пределами занятой части остаётся
+    // предыдущая, более длинная надпись. Выводится строго занятая часть —
+    // но билинейная фильтрация на краю прихватывает соседний столбец, и
+    // он проступает вертикальной чёрточкой. На заголовке окна истории
+    // («ИСТОРИЯ» → «РАУНД») это выглядело как курсор после текста.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, needW + 2, needH + 2);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    this._applyFont(ctx);
     ctx.textAlign = s.align;
     ctx.textBaseline = "middle";
     ctx.lineJoin = "round";
@@ -385,13 +518,26 @@ export class Text extends Node {
     for (let i = 0; i < lines.length; i++) {
       const y = padY + lineHeight * (i + 0.5);
 
+      // Заливка считается один раз на строку и используется обоими
+      // проходами. Раньше проход тени красился отдельным цветом, и у
+      // градиентной надписи это был белый по умолчанию — на краях
+      // букв проступала светлая кайма.
+      let paint = s.fill;
+      if (s.gradient) {
+        const g = ctx.createLinearGradient(0, padY + lineHeight * i, 0, padY + lineHeight * (i + 1));
+        for (const [off, color] of s.gradient) g.addColorStop(off, color);
+        paint = g;
+      }
+
       if (s.shadow) {
         ctx.save();
         ctx.shadowColor = s.shadow.color;
         ctx.shadowBlur = s.shadow.blur;
+        // Смещение тени задаётся в пикселях вывода и текущей матрицей
+        // не преобразуется — отсюда домножение на dpr вручную.
         ctx.shadowOffsetX = (s.shadow.x || 0) * dpr;
         ctx.shadowOffsetY = (s.shadow.y || 0) * dpr;
-        ctx.fillStyle = s.fill;
+        ctx.fillStyle = paint;
         ctx.fillText(lines[i], anchorX, y);
         ctx.restore();
       }
@@ -403,13 +549,7 @@ export class Text extends Node {
         ctx.strokeText(lines[i], anchorX, y);
       }
 
-      if (s.gradient) {
-        const g = ctx.createLinearGradient(0, padY + lineHeight * i, 0, padY + lineHeight * (i + 1));
-        for (const [off, color] of s.gradient) g.addColorStop(off, color);
-        ctx.fillStyle = g;
-      } else {
-        ctx.fillStyle = s.fill;
-      }
+      ctx.fillStyle = paint;
       ctx.fillText(lines[i], anchorX, y);
     }
 
@@ -418,18 +558,206 @@ export class Text extends Node {
     this._dirty = false;
   }
 
+  _applyFont(ctx) {
+    ctx.font = this.style.font;
+    if ("letterSpacing" in ctx) ctx.letterSpacing = `${this.style.letterSpacing}px`;
+  }
+
+  /**
+   * Буфер растёт ступенями по 64 пикселя. Без ступени счётчик, у которого
+   * за кадр прибавляется цифра, переаллоцировал бы холст почти каждый кадр —
+   * то есть ровно та беда, от которой мы уходим.
+   */
+  _growBuffer(needW, needH) {
+    if (this._bufW >= needW && this._bufH >= needH) return;
+    const w = Math.max(this._bufW, Math.ceil(needW / 64) * 64);
+    const h = Math.max(this._bufH, Math.ceil(needH / 64) * 64);
+    this._canvas.width = w;
+    this._canvas.height = h;
+    this._bufW = w;
+    this._bufH = h;
+  }
+
   _fontSize(font) {
     const m = font.match(/(\d+(?:\.\d+)?)px/);
     return m ? parseFloat(m[1]) : 16;
   }
 }
 
+/* ──────────────────────── пакет спрайтов ────────────────────────── */
+
+/**
+ * Много картинок одним узлом сцены.
+ *
+ * Барабаны — двадцать пять символов плюс подсветка, свечение и лучи; в графе
+ * сцены это под сотню узлов с матрицей, альфой и проверкой отсечения у
+ * каждого. Раньше та же экономия достигалась узлом Custom с колбэком на ctx —
+ * то есть игровой слой писался против Canvas2D и на другом бэкенде переставал
+ * работать вовсе. Здесь игра кладёт в пакет ЧИСЛА, а чем их рисовать, решает
+ * бэкенд: у Canvas2D это цикл drawImage, у WebGL2 — один батч.
+ *
+ * Записи переиспользуются: пакет собирается заново каждый кадр, и аллокация
+ * на элемент означала бы сотню объектов в кадре.
+ */
+export class SpriteBatch extends Node {
+  constructor(width = 0, height = 0) {
+    super();
+    this.nodeType = NodeType.SPRITE_BATCH;
+    this.width = width;
+    this.height = height;
+    this.items = [];
+    this.count = 0;
+  }
+
+  setSize(w, h) {
+    this.width = w;
+    this.height = h;
+    return this;
+  }
+
+  /** Начинает новый кадр пакета. Записи прошлого кадра переиспользуются. */
+  clear() {
+    this.count = 0;
+    return this;
+  }
+
+  /**
+   * Добавляет картинку по ЦЕНТРУ (cx, cy). Аргументы позиционные и все
+   * обязательные: объект настроек на каждый символ — это те же аллокации
+   * в кадре, от которых пакет и заводился.
+   */
+  add(frame, cx, cy, w, h, alpha = 1, rotation = 0, blend = null) {
+    let it = this.items[this.count];
+    if (!it) {
+      it = { frame: null, x: 0, y: 0, w: 0, h: 0, alpha: 1, rotation: 0, blend: null };
+      this.items.push(it);
+    }
+    it.frame = frame;
+    it.x = cx;
+    it.y = cy;
+    it.w = w;
+    it.h = h;
+    it.alpha = alpha;
+    it.rotation = rotation;
+    it.blend = blend;
+    this.count++;
+    return it;
+  }
+
+  getLocalSize() {
+    return { width: this.width, height: this.height };
+  }
+}
+
+/* ──────────────────────── векторная фигура ──────────────────────── */
+
+/**
+ * Ломаные и многоугольники, заданные ДАННЫМИ.
+ *
+ * Нужна там, где картинки нет и быть не может: линии выплат, галочка,
+ * шкала волатильности. Раньше всё это рисовалось колбэком на ctx прямо
+ * из игрового слоя; здесь узел несёт только координаты и стиль, а как
+ * превратить их в пиксели — забота бэкенда (на WebGL2 — разложение
+ * в треугольники).
+ *
+ * Путь: { points: [x, y, …], closed, fill, stroke, strokeWidth,
+ *         dash, dashOffset, cap, join, alpha }
+ * fill и stroke — цвет строкой либо описание градиента (см. Rect#fill).
+ */
+export class Shape extends Node {
+  constructor(paths = [], width = 0, height = 0) {
+    super();
+    this.nodeType = NodeType.SHAPE;
+    this.paths = paths;
+    this.width = width;
+    this.height = height;
+  }
+
+  getLocalSize() {
+    return { width: this.width, height: this.height };
+  }
+}
+
+/* ────────────────────────── фон «по большей стороне» ───────────── */
+
+/**
+ * Полноэкранный фон из одной-двух картинок.
+ *
+ * Узел несёт только данные: какие кадры показать, с какой прозрачностью
+ * и в каком прямоугольнике. Всё остальное — забота бэкенда, и это не
+ * формальность: фон единственный элемент, который обязан заполнять экран
+ * целиком, а значит масштабируется «по большей стороне» с обрезкой краёв.
+ * На Canvas2D такое масштабирование картинки 1920×1080 в 3072×1728 в кадре
+ * в одиночку съедало больше трети бюджета, поэтому бэкенд собирает фон
+ * в offscreen ровно один раз и дальше копирует один к одному.
+ *
+ * Раньше этот кеш лежал в теме и рисовал сам, через Custom(ctx => …) —
+ * последнее место в клиенте, прибитое к Canvas2D. Теперь темы описывают
+ * фон именами кадров, а вторая тема получает его бесплатно.
+ *
+ * layers: [{ name: имя кадра, alpha: 0…1 }] — порядок снизу вверх.
+ */
+export class CoverImage extends Node {
+  constructor(store, width = 0, height = 0) {
+    super();
+    this.nodeType = NodeType.COVER;
+    this.store = store;
+    this.layers = [];
+    this.width = width;
+    this.height = height;
+    // Ключ состояния для бэкенда: пока он не менялся, пересобирать нечего.
+    this.revision = 0;
+  }
+
+  /** @param layers [{ name, alpha }]; alpha ≤ 0 — слой не рисуется вовсе. */
+  setLayers(layers) {
+    const next = layers.filter((l) => l.name && (l.alpha === undefined || l.alpha > 0.004));
+    if (sameLayers(this.layers, next)) return this;
+    this.layers = next;
+    this.revision++;
+    return this;
+  }
+
+  setSize(width, height) {
+    if (width === this.width && height === this.height) return this;
+    this.width = width;
+    this.height = height;
+    this.revision++;
+    return this;
+  }
+
+  getLocalSize() {
+    return { width: this.width, height: this.height };
+  }
+}
+
+function sameLayers(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].name !== b[i].name) return false;
+    if (Math.abs((a[i].alpha ?? 1) - (b[i].alpha ?? 1)) > 0.004) return false;
+  }
+  return true;
+}
+
 /* ─────────────────────── простые примитивы ──────────────────────── */
 
-/** Заливка прямоугольника — подложки, затемнения, полосы прогресса. */
+/**
+ * Заливка прямоугольника — подложки, затемнения, полосы прогресса.
+ *
+ * `fill` — либо цвет строкой, либо НЕИЗМЕНЯЕМОЕ описание градиента:
+ *   { type: "linear", x0, y0, x1, y1, stops: [[доля, цвет], …] }
+ *   { type: "radial", x0, y0, r0, x1, y1, r1, stops }
+ * Бэкенд кеширует построенный градиент прямо на этом объекте, поэтому
+ * менять его поля нельзя: нужен другой градиент — нужен другой объект.
+ * Анимировать прозрачность следует альфой узла, а не альфой в стопах.
+ */
 export class Rect extends Node {
-  constructor(width, height, fill = "#000000") {
+  /** @param fill цвет, описание градиента или null — прямоугольник без заливки. */
+  constructor(width, height, fill = null) {
     super();
+    this.nodeType = NodeType.RECT;
+    this.cullable = true;
     this.width = width;
     this.height = height;
     this.fill = fill;
@@ -441,15 +769,25 @@ export class Rect extends Node {
   getLocalSize() {
     return { width: this.width, height: this.height };
   }
+
+  getCullRect(out) {
+    out.x = 0; out.y = 0; out.w = this.width; out.h = this.height;
+    return out;
+  }
 }
 
 /**
  * Узел с произвольной отрисовкой: колбэк получает готовый контекст
- * в локальной системе координат. Для линий выплат и прочей векторики.
+ * в локальной системе координат.
+ *
+ * Существует как аварийный выход, а не как способ строить игру: всё, что
+ * рисуется через Custom, привязано к Canvas2D и на другом бэкенде работать
+ * не будет. Новую графику правильнее описывать своим типом узла.
  */
 export class Custom extends Node {
   constructor(drawFn, width = 0, height = 0) {
     super();
+    this.nodeType = NodeType.CUSTOM;
     this.drawFn = drawFn;
     this.width = width;
     this.height = height;
@@ -458,4 +796,16 @@ export class Custom extends Node {
   getLocalSize() {
     return { width: this.width, height: this.height };
   }
+
+  /**
+   * Отсечение доступно, но выключено: колбэк вправе рисовать за пределами
+   * объявленного размера, и включать его должен тот, кто знает, что не
+   * рисует. Ставится через node.cullable = true.
+   */
+  getCullRect(out) {
+    out.x = 0; out.y = 0; out.w = this.width; out.h = this.height;
+    return out;
+  }
 }
+
+export { NodeType };

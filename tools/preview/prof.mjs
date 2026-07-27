@@ -18,9 +18,9 @@ const r = await page.evaluate(async () => {
   const full = time(() => R.render());
 
   // без фона
-  g.background.visible = false;
+  g.backgroundNode.visible = false;
   const noBg = time(() => R.render());
-  g.background.visible = true;
+  g.backgroundNode.visible = true;
 
   // без барабанов
   g.reelSet.visible = false;
@@ -28,14 +28,14 @@ const r = await page.evaluate(async () => {
   g.reelSet.visible = true;
 
   // только очистка холста
-  const ctx = R.ctx;
+  const ctx = R.backend.ctx;   // диагностике нужен нативный контекст бэкенда
   const clearOnly = time(() => { ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle="#000"; ctx.fillRect(0,0,R.canvas.width,R.canvas.height); });
 
   // качество сглаживания
   const prevQ = ctx.imageSmoothingQuality;
   ctx.imageSmoothingQuality = "low";
   const origRender = R.render.bind(R);
-  R.render = function(){ const c=this.ctx; origRender(); c.imageSmoothingQuality="low"; };
+  R.render = function(){ const c=this.backend.ctx; origRender(); c.imageSmoothingQuality="low"; };
   const lowQ = time(() => R.render());
   R.render = origRender;
   ctx.imageSmoothingQuality = prevQ;

@@ -218,3 +218,12 @@ html, body {
 @media (orientation: landscape) and (max-height: 380px) {
   #rotate-hint { display: flex; }
 }
+
+/* Единственный текст вне canvas, который видит игрок без JavaScript.
+   Лежит здесь, а не в атрибуте style: строгий CSP (style-src 'self')
+   инлайновые стили не выполняет, и надпись осталась бы без оформления. */
+.noscript-note {
+  color: #FFFFFF;
+  font: 16px/1.5 sans-serif;
+  padding: 24px;
+}
