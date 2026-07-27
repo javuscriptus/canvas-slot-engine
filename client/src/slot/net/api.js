@@ -25,20 +25,25 @@ export class ApiError extends Error {
 }
 
 export class GameApi {
-  constructor({ baseUrl = "", timeoutMs = 15000 } = {}) {
+  constructor({ baseUrl = "", timeoutMs = 15000, forceMock = false } = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.timeoutMs = timeoutMs;
     this.sessionToken = null;
     this.config = null;
+    // Обязательство провабли-фейр на СЛЕДУЮЩИЙ раунд: хеш серверного семени
+    // обязан быть у игрока до спина, иначе схема ничего не доказывает.
     this.fair = null;
-    this.onConnectionChange = null;
+    this.onConnectionChange = null;   // (online: boolean) => void
     this._online = true;
     this.mock = null;
-    this.isMock = false;
+    this.isMock = forceMock;
   }
 
   _getMock() {
-    if (!this.mock) this.mock = new MockGameServer();
+    if (!this.mock) {
+      this.mock = new MockGameServer();
+      console.info("[GameApi] Включён автономный демо-режим (Client RGS Mock)");
+    }
     return this.mock;
   }
 
@@ -88,6 +93,8 @@ export class GameApi {
         clearTimeout(timer);
         if (err instanceof ApiError) throw err;
 
+        // Сюда попадают обрывы сети и таймауты — их повторять можно,
+        // потому что запрос защищён ключом идемпотентности.
         lastError = new ApiError("NETWORK", "Нет связи с сервером", { retriable: true });
         this._setOnline(false);
         if (attempt < retries) {
@@ -114,13 +121,17 @@ export class GameApi {
       this.config = await this._request("GET", "/api/config");
       return this.config;
     } catch (err) {
-      console.warn("Бэкенд недоступен, переход в клиентский демо-режим:", err);
+      console.warn("[GameApi] Сервер недоступен. Переключение в мок-режим (Client RGS Mock):", err.message || err);
       this.isMock = true;
       this.config = this._getMock().getConfig();
       return this.config;
     }
   }
 
+  /**
+   * Открывает сессию. launchToken приходит из URL, когда игру запускает
+   * оператор; без него сервер выдаёт демо-сессию (если демо разрешено).
+   */
   async openSession({ launchToken = null } = {}) {
     if (this.isMock) return this._getMock().getSession();
     try {
@@ -158,6 +169,11 @@ export class GameApi {
     return data;
   }
 
+  /**
+   * Задать своё клиентское семя. Сервер в ответ публикует новое
+   * обязательство: уже выданный хеш задним числом не меняется.
+   * Повторять запрос нельзя — каждый вызов выдаёт новое семя.
+   */
   async setClientSeed(clientSeed) {
     if (this.isMock) return { hash: "demo-hash" };
     const data = await this._request("POST", "/api/fair/commit", { clientSeed }, { retries: 0 });
@@ -165,6 +181,7 @@ export class GameApi {
     return data.fair;
   }
 
+  /** Раскрытые семена прошлого раунда и его пересчёт. */
   async verifyRound(id) {
     if (this.isMock) return { id };
     return this._request("GET", `/api/fair/round/${encodeURIComponent(id)}`);
@@ -175,14 +192,20 @@ export class GameApi {
     return this._request("GET", `/api/history?limit=${limit}`);
   }
 
+  /** Полная запись раунда — для экрана истории и разбора с поддержкой. */
   async round(id) {
     if (this.isMock) return this._getMock().getRound(id);
     return this._request("GET", `/api/round/${encodeURIComponent(id)}`);
   }
 
+  /**
+   * Одноразовый тикет на апгрейд сокета.
+   *
+   * Повторять нельзя: тикет мог быть выдан и потерян по дороге, но каждый
+   * запрос стоит записи в БД, а сеть всё равно чинится реконнектом.
+   */
   async wsTicket() {
     if (this.isMock) return { ticket: "mock-ticket" };
     return this._request("POST", "/api/ws-ticket", {}, { retries: 0 });
   }
 }
-

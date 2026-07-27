@@ -120,6 +120,7 @@ export class MockGameServer {
   getConfig() {
     return {
       game: { id: "slot-demo", title: "Sochi Sunset Slot", lines: PAYLINES.length },
+      isMock: true,
       reels: NUM_REELS,
       rows: NUM_ROWS,
       symbolKeys: ["anchor", "icecream", "shashlik", "hat", "wine", "gem_red", "gem_amber", "gem_green", "gem_aqua", "gem_purple", "wild", "scatter"],
@@ -141,7 +142,6 @@ export class MockGameServer {
     };
   }
 
-
   getSession() {
     return {
       sessionToken: "demo-token",
@@ -149,9 +149,11 @@ export class MockGameServer {
       currency: "EUR",
       balance: this.balance,
       demo: true,
+      isMock: true,
       fair: { hash: "demo-hash-" + Math.random().toString(36).slice(2) }
     };
   }
+
 
   getState() {
     return {

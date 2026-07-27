@@ -34,8 +34,13 @@ export async function bootSlot({ theme, i18n, canvas, container, onProgress = ()
   // Брать его из ?api= нельзя: ссылка на запуск приходит игроку от кого
   // угодно, а ?api=//злой.хост уводит туда launch-токен оператора вместе
   // со всей сессией. Параметр остаётся только для стенда разработчика.
+  // Флаг ?mock=1 явно переключает в мок-режим (автономный клиентский RGS).
   const devHost = location.hostname === "localhost";
-  const api = new GameApi({ baseUrl: devHost ? (params.get("api") || "") : "" });
+  const forceMock = params.get("mock") === "1" || params.get("mock") === "true";
+  const api = new GameApi({
+    baseUrl: devHost ? (params.get("api") || "") : "",
+    forceMock
+  });
   const audio = new AudioManager({ enabled: localStorage.getItem(`${theme.id}.muted`) !== "1" });
   audio.attachUnlock(window);
   audio.attachVisibility();
@@ -48,9 +53,10 @@ export async function bootSlot({ theme, i18n, canvas, container, onProgress = ()
   ]);
   onProgress(0.1, i18n.t("loadingAssets"));
 
+  // Начертания перечисляет тема: список гарнитур — часть оформления,
+  // и движок про Poppins знать не обязан.
   const assetBase = params.get("assets") || (location.pathname.includes("/client/") ? "assets/" : "client/assets/");
   const loader = new Loader(assetBase, { fonts: theme.fonts.preload });
-
   loader.onProgress.add((p) => onProgress(0.1 + p * 0.75, i18n.t("loadingAssets")));
   const store = await loader.loadAll();
 
