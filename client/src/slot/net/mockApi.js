@@ -119,24 +119,28 @@ export class MockGameServer {
 
   getConfig() {
     return {
-      game: { id: "slot-demo", title: "Slot Demo", lines: PAYLINES.length, reels: NUM_REELS, rows: NUM_ROWS },
+      game: { id: "slot-demo", title: "Sochi Sunset Slot", lines: PAYLINES.length },
+      reels: NUM_REELS,
+      rows: NUM_ROWS,
+      symbolKeys: ["anchor", "icecream", "shashlik", "hat", "wine", "gem_red", "gem_amber", "gem_green", "gem_aqua", "gem_purple", "wild", "scatter"],
+      wild: SYM.WILD,
+      scatter: SYM.SCATTER,
+      paytable: PAYTABLE,
+      scatterPays: SCATTER_PAYS,
+      paylines: PAYLINES,
+      freespins: { triggerScatters: 3, awarded: { 3: 10, 4: 12, 5: 15 }, retriggerAward: 5, wildMultipliers: [2, 3] },
+      maxWinMultiplier: 5000,
+      betLevels: [0.2, 0.4, 0.6, 0.8, 1, 2, 3, 4, 5, 10, 20, 30, 50, 100],
+      defaultBet: 1,
       currencies: ["EUR", "USD", "RUB"],
       defaultCurrency: "EUR",
       betLimits: { EUR: { min: 0.2, max: 100, default: 1.0 } },
       betSteps: [0.2, 0.4, 0.6, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0],
       rtp: 96.008,
-      symbols: {
-        keys: ["anchor", "icecream", "shashlik", "hat", "wine", "gem_red", "gem_amber", "gem_green", "gem_aqua", "gem_purple", "wild", "scatter"],
-        wild: SYM.WILD,
-        scatter: SYM.SCATTER
-      },
-      paytable: PAYTABLE,
-      scatterPays: SCATTER_PAYS,
-      paylines: PAYLINES,
-      freespins: { triggerScatters: 3, awarded: { 3: 10, 4: 12, 5: 15 } },
       lobby: { origins: ["*"] }
     };
   }
+
 
   getSession() {
     return {
