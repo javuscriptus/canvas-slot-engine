@@ -36,11 +36,13 @@ export async function bootSlot({ theme, i18n, canvas, container, onProgress = ()
   // со всей сессией. Параметр остаётся только для стенда разработчика.
   // Флаг ?mock=1 явно переключает в мок-режим (автономный клиентский RGS).
   const devHost = location.hostname === "localhost";
-  const forceMock = params.get("mock") === "1" || params.get("mock") === "true";
+  const isStaticHost = location.hostname.endsWith("github.io") || location.protocol === "file:";
+  const forceMock = params.get("mock") === "1" || params.get("mock") === "true" || isStaticHost;
   const api = new GameApi({
     baseUrl: devHost ? (params.get("api") || "") : "",
     forceMock
   });
+
   const audio = new AudioManager({ enabled: localStorage.getItem(`${theme.id}.muted`) !== "1" });
   audio.attachUnlock(window);
   audio.attachVisibility();
