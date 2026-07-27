@@ -43,7 +43,11 @@ export async function bootSlot({ theme, i18n, canvas, container, onProgress = ()
     forceMock
   });
 
-  const audio = new AudioManager({ enabled: localStorage.getItem(`${theme.id}.muted`) !== "1" });
+  const assetBase = params.get("assets") || (location.pathname.includes("/client/") ? "assets/" : "client/assets/");
+  const audio = new AudioManager({
+    baseUrl: `${assetBase}audio/`,
+    enabled: localStorage.getItem(`${theme.id}.muted`) !== "1"
+  });
   audio.attachUnlock(window);
   audio.attachVisibility();
 
@@ -57,8 +61,8 @@ export async function bootSlot({ theme, i18n, canvas, container, onProgress = ()
 
   // Начертания перечисляет тема: список гарнитур — часть оформления,
   // и движок про Poppins знать не обязан.
-  const assetBase = params.get("assets") || (location.pathname.includes("/client/") ? "assets/" : "client/assets/");
   const loader = new Loader(assetBase, { fonts: theme.fonts.preload });
+
   loader.onProgress.add((p) => onProgress(0.1 + p * 0.75, i18n.t("loadingAssets")));
   const store = await loader.loadAll();
 
